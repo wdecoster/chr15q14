@@ -234,7 +234,7 @@ def get_args():
     )
     parser.add_argument("--sample", help="Sample(s) to highlight", nargs="*")
     parser.add_argument(
-        "--support", help="Minimum read support for a call", type=int, default=3
+        "--support", help="Minimum read support for a call", type=int, default=2
     )
     parser.add_argument(
         "-m", "--min-length", help="Minimum repeat length", type=int, default=20
