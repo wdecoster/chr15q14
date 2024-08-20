@@ -3,7 +3,6 @@ import glob
 import pandas as pd
 from os.path import basename
 
-
 outdir = "/results/rr/study/hg38s/study252-P200_analysis/workflow_results/chr15q14/"
 ref = "/home/wdecoster/GRCh38_recommended/GRCh38.fa"
 
@@ -33,12 +32,28 @@ for path in crams["path-to-cram"]:
     if not path.startswith("https://"):
         assert os.path.exists(path), f"Path does not exist: {path}"
 
-# dump the dataframe to a tsv file
+# dump the dataframe to a tsv file, as it is used in the workflow
 crams.to_csv("/home/wdecoster/chr15q14/full_cohort_for_paper.tsv", sep="\t", index=False)
 
 
 def get_cram(wildcards):
     return crams.loc[crams["individual"] == wildcards.id, "path-to-cram"].values[0]
+
+
+def fix_names_relatives(wildcards):
+    """
+    This very specific function prepares the names of the relatives for the axis labels in the aSTRonaut plot.
+    This requires a dictionary with the names of the relatives, which is imported from a separate file.
+    This separate file is not included in the repository, as it contains personal information (identifiers).
+    As a fallback, the function will return the original identifiers.
+    """
+    try:
+        from privacy import name_changes_relatives as name_changes
+        relatives = crams.loc[crams["collection"] == "relatives", "individual"].tolist()
+        return ','.join([name_changes[r] for r in relatives])
+    except ImportError:
+        return ','.join(crams.loc[crams["collection"] == "relatives", "individual"].tolist())
+
 
 
 def get_coords(wildcards):
@@ -84,6 +99,7 @@ rule all:
         astronaut_all=os.path.join(outdir, "plots/golga8a/aSTRonaut_all.html"),
         astronaut_delT=os.path.join(outdir, "plots/golga8a/aSTRonaut_delT.html"),
         astronaut_625=os.path.join(outdir, "plots/golga8a/aSTRonaut_625.html"),
+        astronaut_relatives=os.path.join(outdir, "plots/golga8a/aSTRonaut_relatives.html"),
         kmer_plot=expand(
             os.path.join(outdir, "plots", "{target}/kmer_plot.html"),
             target=["golga8a"],
@@ -373,6 +389,31 @@ rule astronaut_625:
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
         {input} -m 100 -o {output} --hide-labels --longest_only --publication --title "Repeat composition sequence in carriers of the minor haplotype" --sampleinfo {params.sample_info} 2> {log}
+        """
+
+rule astronaut_relatives:
+    input:
+        expand(
+            os.path.join(outdir, "strdust/golga8a/{id}.vcf.gz"),
+            id=crams.loc[crams["collection"] == "relatives", "individual"], # this corresponds to the individuals with relatives in the cohort
+        ),
+    output:
+        os.path.join(outdir, "plots/golga8a/aSTRonaut_relatives.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/aSTRonaut_relatives.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/results/rr/study/hg38s/study252-P200_analysis/fus-analysis/astronaut/sample_info.tsv",
+        relative_names=fix_names_relatives
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --names {params.relative_names} \
+        --label_size 16 \
+        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
         """
 
 rule ct_vs_length:
