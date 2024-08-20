@@ -87,14 +87,11 @@ def main():
     else:
         df["highlight"] = False
     if args.groups:
-        sampleinfo = pd.read_csv(args.groups, sep="\t")
-        assert sampleinfo.columns.to_list() == [
-            "name",
-            "group",
-            "sex",
-            "copy number",
-            "haplotype",
-        ]
+        sampleinfo = pd.read_csv(
+            args.groups,
+            sep="\t",
+            usecols=["individual", "cohort", "copy number", "sex", "haplotype"],
+        ).rename(columns={"cohort": "group", "individual": "name"})
         sampleinfo["copy number"] = sampleinfo["copy number"].round(2)
         df = df.merge(sampleinfo, on="name", how="left")
     df.to_csv("analysis_overview.tsv", index=False, sep="\t")
@@ -165,7 +162,7 @@ def make_scatter_plot(df, title, args):
         title=title,
         error_y="stddev" if args.stddev else None,
     )
-    fig.update_traces(marker=dict(size=8))
+    fig.update_traces(marker=dict(size=6, opacity=0.5))
     fig.update_layout(
         plot_bgcolor="white",
         font=dict(size=20),
@@ -174,8 +171,8 @@ def make_scatter_plot(df, title, args):
             itemsizing="constant",
             yanchor="top",
             y=0.99,
-            xanchor="right",
-            x=0.99,
+            xanchor="left",
+            x=0.05,
         ),
         width=1000,
         height=600,
