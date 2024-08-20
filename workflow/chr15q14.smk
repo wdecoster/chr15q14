@@ -8,7 +8,7 @@ outdir = "/results/rr/study/hg38s/study252-P200_analysis/workflow_results/chr15q
 ref = "/home/wdecoster/GRCh38_recommended/GRCh38.fa"
 
 # load the dataframe from the excel sheet
-crams = pd.read_excel("/home/wdecoster/p200/fus-analysis/full_cohort_for_paper.xlsx")
+crams = pd.read_excel("/home/wdecoster/chr15q14/full_cohort_for_paper.xlsx")
 # remove individuals that have "inclusion" set to "no"
 # currently, also remove samples that are not_brain (corresponding to individuals for which multiple tissues were sequenced or no brain available) are dropped
 # but this still has to be fixed later, to get those samples back in for specific analyses
@@ -34,7 +34,7 @@ for path in crams["path-to-cram"]:
         assert os.path.exists(path), f"Path does not exist: {path}"
 
 # dump the dataframe to a tsv file
-crams.to_csv("/home/wdecoster/p200/fus-analysis/full_cohort_for_paper.tsv", sep="\t", index=False)
+crams.to_csv("/home/wdecoster/chr15q14/full_cohort_for_paper.tsv", sep="\t", index=False)
 
 
 def get_cram(wildcards):
@@ -88,6 +88,7 @@ rule all:
             os.path.join(outdir, "plots", "{target}/kmer_plot.html"),
             target=["golga8a"],
         ),
+        ct_vs_length=os.path.join(outdir, "plots/golga8a/ct_vs_length.html"),
         # copy_number_plot=os.path.join(outdir, "plots", "copy_number.html"),
 
 
@@ -261,7 +262,7 @@ rule kmer_plot:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     params:
         script=os.path.join(
-            os.path.dirname(workflow.basedir), "analysis/kmer-frequencies-vcf.py"
+            os.path.dirname(workflow.basedir), "scripts/kmer-frequencies-vcf.py"
         ),
         kmer=12,
         sampleinfo="/home/wdecoster/p200/fus-analysis/full_cohort_for_paper.tsv",
@@ -372,6 +373,29 @@ rule astronaut_625:
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
         {input} -m 100 -o {output} --hide-labels --longest_only --publication --title "Repeat composition sequence in carriers of the minor haplotype" --sampleinfo {params.sample_info} 2> {log}
+        """
+
+rule ct_vs_length:
+    input:
+        expand(
+            os.path.join(outdir, "strdust/golga8a/{id}.vcf.gz"),
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
+        ),
+    output:
+        os.path.join(outdir, "plots/golga8a/ct_vs_length.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/ct_vs_length.log"),
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/plot_ct_vs_repeat_length.py",
+        ),
+        sample_info = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script}  -o {output} --groups {params.sample_info} {input} 2> {log} 
         """
 
 
