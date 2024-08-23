@@ -35,10 +35,22 @@ for path in crams["path-to-cram"]:
 # dump the dataframe to a tsv file, as it is used in the workflow
 crams.to_csv("/home/wdecoster/chr15q14/full_cohort_for_paper.tsv", sep="\t", index=False)
 
+def get_duplicates():
+    other_tissues = crams.loc[crams["collection"] == "other_tissue_duplicate", "individual"].tolist()
+    fcxs = crams.loc[crams["collection"] == "normal", "individual"].tolist()
+    samples = []
+    for other in other_tissues:
+        stripped = other.replace("_CELL_LINE", "").replace("_CER", "").replace("_OCX", "").replace("_tissue_CAU", "")
+        if stripped in fcxs:
+            samples.append(stripped)
+        else:
+            print(f"Sample {stripped} not found in the cohort")
+    return samples + other_tissues
+
+duplicates = get_duplicates()
 
 def get_cram(wildcards):
     return crams.loc[crams["individual"] == wildcards.id, "path-to-cram"].values[0]
-
 
 def fix_names_relatives(wildcards):
     """
@@ -48,12 +60,33 @@ def fix_names_relatives(wildcards):
     As a fallback, the function will return the original identifiers.
     """
     try:
-        from privacy import name_changes_relatives as name_changes
+        from privacy import name_changes_relatives
         relatives = crams.loc[crams["collection"] == "relatives", "individual"].tolist()
-        return ','.join([name_changes[r] for r in relatives])
+        return ','.join([name_changes_relatives[r] for r in relatives])
     except ImportError:
         return ','.join(crams.loc[crams["collection"] == "relatives", "individual"].tolist())
 
+def fix_names_duplicates(wildcards):
+    """
+    This very specific function prepares the names of the individuals for which multiple samples were sequenced for the axis labels in the aSTRonaut plot.
+    This requires a dictionary with the names, which is imported from a separate file.
+    The dictionary contains the individual names as keys and the new names as values.
+    This is replaced in the identifiers, to preserve the sample type information.
+    This separate file is not included in the repository, as it contains personal information (identifiers).
+    As a fallback, the function will return the original identifiers.
+    """
+    try:
+        from privacy import name_changes_duplicates
+        out = []
+        for d in duplicates:
+            for k,v in name_changes_duplicates.items():
+                if k == d:
+                    out.append(f"{v}_FCX")
+                elif k in d:
+                    out.append(d.replace(k, v).replace("_CELL_LINE", "_LCL").replace("_tissue_CAU", "_CAU"))
+        return ','.join(out)
+    except ImportError:
+        return ','.join(crams.loc[crams["collection"] == "other_tissue_duplicate", "individual"].tolist())
 
 
 def get_coords(wildcards):
@@ -72,7 +105,7 @@ def get_coords(wildcards):
         raise ValueError(f"Unknown target: {wildcards.target}")
 
 
-targets = ["golga8a"]  # select loci from the keys in coords dictionary in get_coords()
+targets = ["golga8a", "mga"]  # select loci from the keys in coords dictionary in get_coords()
 
 
 rule all:
@@ -100,6 +133,7 @@ rule all:
         astronaut_delT=os.path.join(outdir, "plots/golga8a/aSTRonaut_delT.html"),
         astronaut_625=os.path.join(outdir, "plots/golga8a/aSTRonaut_625.html"),
         astronaut_relatives=os.path.join(outdir, "plots/golga8a/aSTRonaut_relatives.html"),
+        astronaut_multiple_samples=os.path.join(outdir, "plots/golga8a/aSTRonaut_multiple_samples.html"),
         kmer_plot=expand(
             os.path.join(outdir, "plots", "{target}/kmer_plot.html"),
             target=["golga8a"],
@@ -412,8 +446,37 @@ rule astronaut_relatives:
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
         --names {params.relative_names} \
-        --label_size 16 \
+        --label_size 20 \
+        --alphabetic \
+        --hide_allele_label \
         {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
+        """
+
+rule astronaut_multiple_samples:
+    input:
+        expand(
+            os.path.join(outdir, "strdust/golga8a/{id}.vcf.gz"),
+            id=duplicates, # this corresponds to the individuals with multiple samples in the cohort
+        ),
+    output:
+        os.path.join(outdir, "plots/golga8a/aSTRonaut_multiple_samples.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/aSTRonaut_multiple_samples.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/results/rr/study/hg38s/study252-P200_analysis/fus-analysis/astronaut/sample_info.tsv",
+        duplicate_names=fix_names_duplicates
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --names {params.duplicate_names} \
+        --label_size 20 \
+        --alphabetic \
+        --hide_allele_label \
+        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
         """
 
 rule ct_vs_length:
