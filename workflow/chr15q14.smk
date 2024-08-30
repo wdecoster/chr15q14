@@ -49,6 +49,22 @@ def get_duplicates():
 
 duplicates = get_duplicates()
 
+def get_representative_cohort():
+    """return all individuals from the normal collection, 
+    but exclude those controls with the major haplotype that have been intentionally included, 
+    as listed in privacy.intentionally_included_controls"""
+    try:
+        from privacy import intentionally_included_controls
+        return crams.loc[
+            (crams["collection"] == "normal")
+            & (~crams["individual"].isin(intentionally_included_controls)),
+            "individual",
+        ].tolist()
+    except ImportError:
+        return crams.loc[crams["collection"] == "normal", "individual"].tolist()
+
+representative_cohort = get_representative_cohort()
+
 def get_cram(wildcards):
     return crams.loc[crams["individual"] == wildcards.id, "path-to-cram"].values[0]
 
@@ -89,24 +105,32 @@ def fix_names_duplicates(wildcards):
         return ','.join(crams.loc[crams["collection"] == "other_tissue_duplicate", "individual"].tolist())
 
 
+coords = {
+    "golga8a": ["chr15:34419425-34419451", "--unphased"],
+    "inbetween": ["chr15:34480576-34480608", "--unphased"],
+    "golga8b": ["chr15:34565656-34565682", "--unphased"],
+    "mga": ["chr15:41656320-41656381", ""],
+    "linc02177": ["chr16:9393980-9394893", ""],
+    "tata_golga8a": ["chr15:34454183-34454242", "--unphased"],
+    "golga8a_utr": ["chr15:34437426-34437720", "--unphased"],
+}
+
 def get_coords(wildcards):
-    coords = {
-        "golga8a": "chr15:34419425-34419451",
-        "golga8b": "chr15:34565656-34565682",
-        "mga": "chr15:41656320-41656381",
-        "linc02177": "chr16:9393980-9394893",
-        "tata_golga8a": "chr15:34454183-34454242",
-        "dennd2b": "chr11:8810807-8810840",
-        "golga8a_utr": "chr15:34437426-34437720",
-    }
     try:
-        return coords[wildcards.target]
+        return coords[wildcards.target][0]
+    except KeyError:
+        raise ValueError(f"Unknown target: {wildcards.target}")
+
+def get_method(wildcards):
+    try:
+        return coords[wildcards.target][1]
     except KeyError:
         raise ValueError(f"Unknown target: {wildcards.target}")
 
 
-targets = ["golga8a", "mga"]  # select loci from the keys in coords dictionary in get_coords()
 
+targets = ["golga8a", "mga", "linc02177"]  # select loci from the keys in coords dictionary
+assert all([t in coords for t in targets]), "Not all targets are present in the coords dictionary"
 
 rule all:
     input:
@@ -129,7 +153,7 @@ rule all:
             os.path.join(outdir, "plots", "{target}/length_plot_violin.html"),
             target=targets,
         ),
-        astronaut_all=os.path.join(outdir, "plots/golga8a/aSTRonaut_all.html"),
+        astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"), target=targets),
         astronaut_delT=os.path.join(outdir, "plots/golga8a/aSTRonaut_delT.html"),
         astronaut_625=os.path.join(outdir, "plots/golga8a/aSTRonaut_625.html"),
         astronaut_relatives=os.path.join(outdir, "plots/golga8a/aSTRonaut_relatives.html"),
@@ -138,7 +162,8 @@ rule all:
             os.path.join(outdir, "plots", "{target}/kmer_plot.html"),
             target=["golga8a"],
         ),
-        ct_vs_length=os.path.join(outdir, "plots/golga8a/ct_vs_length.html"),
+        ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
+        combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
         # copy_number_plot=os.path.join(outdir, "plots", "copy_number.html"),
 
 
@@ -154,12 +179,13 @@ rule strdust:
         ref=ref,
         locus=get_coords,
         binary="/home/wdecoster/repositories/STRdust/target/release/STRdust",
+        method=get_method,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/tabix.yml")
     shell:
         """RUST_LOG=debug {params.binary} \
         -r {params.locus} \
-        --unphased \
+        {params.method} \
         --find-outliers \
         --somatic \
         {params.ref} {params.cram} 2> {log} | bgzip > {output} 2>> {log}"""
@@ -360,13 +386,13 @@ rule kmer_plot:
 rule astronaut_all:
     input:
         expand(
-            os.path.join(outdir, "strdust/golga8a/{id}.vcf.gz"),
+            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
             id=crams.loc[crams["collection"] == "normal", "individual"], # this corresponds to our own cohort
         ),
     output:
-        os.path.join(outdir, "plots/golga8a/aSTRonaut_all.html"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"),
     log:
-        os.path.join(outdir, "logs/workflows/aSTRonaut_all.log"),
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
     params:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/results/rr/study/hg38s/study252-P200_analysis/fus-analysis/astronaut/sample_info.tsv",
@@ -482,13 +508,13 @@ rule astronaut_multiple_samples:
 rule ct_vs_length:
     input:
         expand(
-            os.path.join(outdir, "strdust/golga8a/{id}.vcf.gz"),
+            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
             id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
         ),
     output:
-        os.path.join(outdir, "plots/golga8a/ct_vs_length.html"),
+        os.path.join(outdir, "plots/{target}/ct_vs_length.html"),
     log:
-        os.path.join(outdir, "logs/workflows/ct_vs_length.log"),
+        os.path.join(outdir, "logs/workflows/{target}/ct_vs_length.log"),
     params:
         script=os.path.join(
             os.path.dirname(workflow.basedir),
@@ -499,8 +525,20 @@ rule ct_vs_length:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
-        python {params.script}  -o {output} --groups {params.sample_info} {input} 2> {log} 
+        python {params.script}  -o {output} --groups {params.sample_info} --haplotypes {input} 2> {log} 
         """
+
+rule make_combined_inquistr_file:
+    input:
+        expand("/results/rr/study/hg38s/study252-P200_analysis/workflow_results/inquistr/inquistr-call/{id}.inq.gz", id=representative_cohort)
+    output:
+        os.path.join(outdir, "inquistr/representative_cohort.inq")
+    log:
+        os.path.join(outdir, "logs/workflows/combine_inquistr.log")
+    params:
+        inquistr = "/home/wdecoster/repositories/inquiSTR/target/release/inquiSTR"
+    shell:
+        "{params.inquistr} combine {input} > {output} 2> {log}"
 
 
 # rule mosdepth:
