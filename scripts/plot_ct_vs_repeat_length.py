@@ -102,40 +102,45 @@ def main():
                 if df["variant"].nunique() > 1
                 else "Consensus repeat length vs %CT"
             )
-            fig = make_scatter_plot(df.loc[df["variant"] == locus], title, args)
+            fig, upper_limit = make_scatter_plot(
+                df.loc[df["variant"] == locus], title, args
+            )
 
             fig.write_html(
                 output,
                 include_plotlyjs="cdn",
                 full_html=True if output.tell() == 0 else False,
             )
-            fig = make_scatter_plot(
-                df.loc[(df["variant"] == locus) & (df["haplotype"] == "major")].drop(
-                    columns=["haplotype"]
-                ),
-                title + " for the major haplotype",
-                args,
-            )
-            fig.write_html(
-                output,
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
-            fig = make_scatter_plot(
-                df.loc[(df["variant"] == locus) & (df["haplotype"] == "minor")].drop(
-                    columns=["haplotype"]
-                ),
-                title + " for the minor haplotype",
-                args,
-            )
-            fig.write_html(
-                output,
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
+            if args.haplotypes:
+                fig, _ = make_scatter_plot(
+                    df.loc[
+                        (df["variant"] == locus) & (df["haplotype"] == "major")
+                    ].drop(columns=["haplotype"]),
+                    title + " for the major haplotype",
+                    args,
+                    upper_limit=upper_limit,
+                )
+                fig.write_html(
+                    output,
+                    include_plotlyjs="cdn",
+                    full_html=False,
+                )
+                fig, _ = make_scatter_plot(
+                    df.loc[
+                        (df["variant"] == locus) & (df["haplotype"] == "minor")
+                    ].drop(columns=["haplotype"]),
+                    title + " for the minor haplotype",
+                    args,
+                    upper_limit=upper_limit,
+                )
+                fig.write_html(
+                    output,
+                    include_plotlyjs="cdn",
+                    full_html=False,
+                )
 
 
-def make_scatter_plot(df, title, args):
+def make_scatter_plot(df, title, args, upper_limit=None):
     # color the plot based on the groups column if it exists
     fig = px.scatter(
         df,
@@ -185,7 +190,9 @@ def make_scatter_plot(df, title, args):
         range=[0, 1],
         title_text="%CT",
     )
-    upper_limit = 2500
+    if upper_limit is None:
+        # round up to the nearest 500
+        upper_limit = (df["length"].max() // 500 + 1) * 500
     fig.update_yaxes(
         showline=True,
         linewidth=2,
@@ -198,7 +205,7 @@ def make_scatter_plot(df, title, args):
         sys.stderr.write(
             "Warning: Some samples have repeat lengths longer than the current y-axis limit\n"
         )
-    return fig
+    return fig, upper_limit
 
 
 def kmer_fraction(seq, kmer, jitter=False):
@@ -240,6 +247,9 @@ def get_args():
         "-g", "--groups", help="Sampleinfo file to link samples to groups"
     )
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
+    parser.add_argument(
+        "--haplotypes", help="Show haplotypes separately", action="store_true"
+    )
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"
     )
