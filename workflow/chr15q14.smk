@@ -521,11 +521,21 @@ rule ct_vs_length:
             "scripts/plot_ct_vs_repeat_length.py",
         ),
         sample_info = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        xline = 0.8,
+        yline = 400,
+        arrows = "rr_UCL2783,rr_CW05_004"
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
-        python {params.script}  -o {output} --groups {params.sample_info} --haplotypes {input} 2> {log} 
+        python {params.script} \
+        -o {output} \
+        --groups {params.sample_info} \
+        --haplotypes \
+        --xline {params.xline} \
+        --yline {params.yline} \
+        --arrow {params.arrows} \
+        {input} 2> {log} 
         """
 
 rule make_combined_inquistr_file:
