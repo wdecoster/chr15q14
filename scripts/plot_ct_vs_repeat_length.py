@@ -141,6 +141,9 @@ def main():
 
 
 def make_scatter_plot(df, title, args, upper_limit=None):
+    if upper_limit is None:
+        # round up to the nearest 500
+        upper_limit = (df["length"].max() // 500 + 1) * 500
     # color the plot based on the groups column if it exists
     fig = px.scatter(
         df,
@@ -167,6 +170,45 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         title=title,
         error_y="stddev" if args.stddev else None,
     )
+    if args.xline and args.yline:
+        fig.add_shape(
+            type="line",
+            x0=args.xline,
+            y0=args.yline,
+            x1=1,
+            y1=args.yline,
+            line_dash="dot",
+            line=dict(color="black", width=1),
+        )
+        fig.add_shape(
+            type="line",
+            x0=args.xline,
+            y0=args.yline,
+            x1=args.xline,
+            y1=upper_limit,
+            line_dash="dot",
+            line=dict(color="black", width=1),
+        )
+    elif args.xline:
+        fig.add_hline(y=args.xline, line_dash="dot", line_color="black", line_width=1)
+    elif args.yline:
+        fig.add_vline(x=args.yline, line_dash="dot", line_color="black", line_width=1)
+    if args.arrow:
+        for sample, color in zip(
+            args.arrow.split(","), ["blue", "green", "orange", "purple"]
+        ):
+            if sample in df["name"].values:
+                fig.add_annotation(
+                    x=df.loc[df["name"] == sample, "%CT"].values[0] + 0.01,
+                    y=df.loc[df["name"] == sample, "length"].values[0]
+                    - 0.02 * upper_limit,
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor=color,
+                    arrowwidth=0.8,
+                    ax=20,
+                    ay=20,
+                )
     fig.update_traces(marker=dict(size=6, opacity=0.5))
     fig.update_layout(
         plot_bgcolor="white",
@@ -190,9 +232,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         range=[0, 1],
         title_text="%CT",
     )
-    if upper_limit is None:
-        # round up to the nearest 500
-        upper_limit = (df["length"].max() // 500 + 1) * 500
+
     fig.update_yaxes(
         showline=True,
         linewidth=2,
@@ -252,6 +292,11 @@ def get_args():
     )
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"
+    )
+    parser.add_argument("--xline", help="Add a line at this x value", type=float)
+    parser.add_argument("--yline", help="Add a line at this y value", type=float)
+    parser.add_argument(
+        "--arrow", help="Add an arrow at specific comma-separated samples"
     )
     return parser.parse_args()
 
