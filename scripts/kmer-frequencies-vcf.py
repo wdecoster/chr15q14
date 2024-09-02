@@ -25,7 +25,7 @@ def main():
                             if len(seq) > args.minlength
                         ]:
                             kmers.update(counts)
-                pruned_kmers = prune_counts(kmers, absolute=args.absolute)
+                pruned_kmers = prune_counts(kmers)
                 if pruned_kmers:
                     pruned_kmers.update(
                         {
@@ -49,7 +49,7 @@ def main():
                     if genotype > 0 and len(v.ALT[genotype - 1]) > args.minlength:
                         counts = count_kmers(v.ALT[genotype - 1], k=args.kmer)
                         kmers.update(counts)
-                pruned_kmers = prune_counts(kmers, absolute=args.absolute)
+                pruned_kmers = prune_counts(kmers)
                 if pruned_kmers:
                     pruned_kmers.update(
                         {
@@ -74,22 +74,20 @@ def main():
         df.loc[df["Group"] == "aFTLD-U", "aFTLD-U"] = 1
         # the haplotype has to be encoded as 1 for major, 0.5 for minor and 0 for the rest
         df["Haplotype"] = 0
-        df.loc[df["haplotype"] == "major", "Haplotype"] = 1
         df.loc[df["haplotype"] == "minor", "Haplotype"] = 0.5
+        df.loc[df["haplotype"] == "major", "Haplotype"] = 1
 
         df["spacer"] = 1
+        df["spacer2"] = 1
+        df["spacer3"] = 1
         # drop the Group column
         df = df.drop(columns=["Group", "haplotype"])
-        # change order of columns to make the 'aFTLD-U' column the first one
-        firstcols = ["individual", "Haplotype", "aFTLD-U", "spacer"]
-        df = df[firstcols + [col for col in df.columns if col not in firstcols]]
 
     df = df.fillna(0).set_index("individual")
+    df["CTCTCTCTCTCT"] = df["CTCTCTCTCTCT"].apply(lambda x: x if x > 0.01 else 0)
     df.to_csv(args.counts if args.counts else f"kmer{args.kmer}-counts.tsv", sep="\t")
     if args.nosort:
-        plot_heatmap(
-            df.transpose(), k=args.kmer, outputfile=args.output, absolute=args.absolute
-        )
+        plot_heatmap(df.transpose(), k=args.kmer, outputfile=args.output)
     else:
         plot_heatmap(
             df.sort_values(
@@ -98,11 +96,10 @@ def main():
                     "CCTT" * int(args.kmer / 4),
                     "CTTT" * int(args.kmer / 4),
                     "CCCT" * int(args.kmer / 4),
-                ]
+                ],
             ).transpose(),
             k=args.kmer,
             outputfile=args.output,
-            absolute=args.absolute,
         )
 
 
@@ -122,10 +119,10 @@ def get_rotations(kmer):
     return sorted(rotations)[0], rotations
 
 
-def prune_counts(kmers, absolute=False):
+def prune_counts(kmers):
     """
     For all rotations of a kmer, keep only the lexicographical first
-    Return the number as a fraction of the total kmers (except if absolute is True)
+    Return the number as a fraction of the total kmers
     And only return those kmers that are above 1%
     """
     pruned = dict()
@@ -136,18 +133,11 @@ def prune_counts(kmers, absolute=False):
         else:
             pruned[first] = sum([kmers[r] for r in rotations])
     total_kmers = sum(pruned.values())
-    if absolute:
-        return {k: v for k, v in pruned.items()}
-    else:
-        return {k: v / total_kmers for k, v in pruned.items()}
+    return {k: v / total_kmers for k, v in pruned.items()}
 
 
-def plot_heatmap(df, k, outputfile, absolute=False, max_missing=0.1):
-    if absolute:
-        df = df.applymap(lambda x: np.log10(x))
-        color_scale = "bluered"
-    else:
-        color_scale = [(0, "white"), (1, "black")]
+def plot_heatmap(df, k, outputfile, max_missing=0.1):
+    color_scale = [(0, "white"), (1, "black")]
     # only keep rows that are not < 0.01 for too many samples
     mask1 = (df < 0.01).sum(axis=1) < ((1 - max_missing) * len(df.columns))
     # but keep also rows that are above 0.2 for at least one sample
@@ -159,10 +149,34 @@ def plot_heatmap(df, k, outputfile, absolute=False, max_missing=0.1):
     # I set it to 1 to make sure it is not removed by the mask
     # this is quite ridiculous but hey bear with me
     df.loc["spacer", :] = 0
+    df.loc["spacer2", :] = 0
+    df.loc["spacer3", :] = 0
+
+    kmers = [
+        c
+        for c in df.index
+        if c not in ["spacer2", "spacer", "spacer3", "aFTLD-U", "Haplotype"]
+    ]
+
+    # change the order of the kmers to show CT dimer first and CCTT tetramer second
+    df = df.reindex(
+        [
+            "Haplotype",
+            "spacer",
+            "aFTLD-U",
+            "spacer2",
+            "spacer3",
+            "CTCTCTCTCTCT",
+            "CCTTCCTTCCTT",
+        ]
+        + [k for k in kmers if k not in ["CTCTCTCTCTCT", "CCTTCCTTCCTT"]]
+    )
 
     rename_dict = {
         "spacer": "",
-        "aFTLD-U": "aFTLD-U",
+        "spacer2": " ",
+        "spacer3": "  ",
+        "aFTLD-U": "Phenotype",
         "Haplotype": "Haplotype",
         "CTCTCTCTCTCT": "(CT)<sub>6</sub>",
         "CTTTCTTTCTTT": "(CTTT)<sub>3</sub>",
@@ -171,27 +185,32 @@ def plot_heatmap(df, k, outputfile, absolute=False, max_missing=0.1):
         "CCCTCCCTCCCT": "(CCCT)<sub>3</sub>",
         "CCCCCCCCCCCC": "C<sub>12</sub>",
     }
+
     fig = px.imshow(
         df.transpose(),
         x=[rename_dict[c] for c in df.index],
         labels=dict(
             x="",
-            y="Individuals",
-            color="log(absolute counts)" if absolute else "Fraction",
+            y="Individuals with an expanded repeat allele",
+            color="Fraction",
         ),
         color_continuous_scale=color_scale,
         aspect="auto",
     )
-    fig.update_xaxes(tickfont_size=20, tickangle=-90)
+    fig.update_xaxes(
+        tickfont_size=20,
+        tickangle=-90,
+    )
     fig.update_yaxes(showticklabels=False)
 
     fig.update_layout(
         plot_bgcolor="rgba(0, 0, 0, 0)",
         paper_bgcolor="rgba(0, 0, 0, 0)",
         height=800,
-        width=450,
+        width=600,
         font=dict(size=18),
         title="Repeat composition",
+        xaxis={"dtick": 1},
     )
     fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
     fig.update_yaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
@@ -218,7 +237,6 @@ def get_args():
         type=int,
         default=100,
     )
-    parser.add_argument("--absolute", help="plot absolute counts", action="store_true")
     parser.add_argument(
         "--somatic",
         help="plot kmers from individual sequences, if not use consensus sequence",
