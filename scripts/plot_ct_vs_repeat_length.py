@@ -94,7 +94,7 @@ def main():
         ).rename(columns={"cohort": "group", "individual": "name"})
         sampleinfo["copy number"] = sampleinfo["copy number"].round(2)
         df = df.merge(sampleinfo, on="name", how="left")
-    df.to_csv("analysis_overview.tsv", index=False, sep="\t")
+    df.to_csv(args.overview, index=False, sep="\t")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
             title = (
@@ -297,6 +297,11 @@ def get_args():
     parser.add_argument("--yline", help="Add a line at this y value", type=float)
     parser.add_argument(
         "--arrow", help="Add an arrow at specific comma-separated samples"
+    )
+    parser.add_argument(
+        "--overview",
+        help="Output file for the overview table",
+        default="repeat_length_overview.tsv",
     )
     return parser.parse_args()
 

@@ -512,7 +512,8 @@ rule ct_vs_length:
             id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
         ),
     output:
-        os.path.join(outdir, "plots/{target}/ct_vs_length.html"),
+        plot = os.path.join(outdir, "plots/{target}/ct_vs_length.html"),
+        overview = os.path.join(outdir, "analysis_overview_{target}.tsv"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/ct_vs_length.log"),
     params:
@@ -529,7 +530,8 @@ rule ct_vs_length:
     shell:
         """
         python {params.script} \
-        -o {output} \
+        --output {output.plot} \
+        --overview {output.overview} \
         --groups {params.sample_info} \
         --haplotypes \
         --xline {params.xline} \
