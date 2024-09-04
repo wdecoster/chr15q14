@@ -184,6 +184,8 @@ def plot_heatmap(df, k, outputfile, max_missing=0.1):
         "CCCTCTCCCTCT": "(CCCTCT)<sub>2</sub>",
         "CCCTCCCTCCCT": "(CCCT)<sub>3</sub>",
         "CCCCCCCCCCCC": "C<sub>12</sub>",
+        "ATATATATATAT": "(AT)<sub>6</sub>",
+        "GTGTGTGTGTGT": "(GT)<sub>6</sub>",
     }
 
     fig = px.imshow(
