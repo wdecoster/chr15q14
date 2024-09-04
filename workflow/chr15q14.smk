@@ -106,7 +106,8 @@ def fix_names_duplicates(wildcards):
 
 
 coords = {
-    "golga8a": ["chr15:34419425-34419451", "--unphased"],
+    "golga8a_unphased": ["chr15:34419425-34419451", "--unphased"],
+    "golga8a": ["chr15:34419425-34419451", ""],
     "inbetween": ["chr15:34480576-34480608", "--unphased"],
     "golga8b": ["chr15:34565656-34565682", "--unphased"],
     "mga": ["chr15:41656320-41656381", ""],
@@ -129,7 +130,7 @@ def get_method(wildcards):
 
 
 
-targets = ["golga8a", "mga", "linc02177"]  # select loci from the keys in coords dictionary
+targets = ["golga8a"]  # select loci from the keys in coords dictionary
 assert all([t in coords for t in targets]), "Not all targets are present in the coords dictionary"
 
 rule all:
@@ -180,12 +181,14 @@ rule strdust:
         locus=get_coords,
         binary="/home/wdecoster/repositories/STRdust/target/release/STRdust",
         method=get_method,
+        support=2,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/tabix.yml")
     shell:
         """RUST_LOG=debug {params.binary} \
         -r {params.locus} \
         {params.method} \
+        --support {params.support} \
         --find-outliers \
         --somatic \
         {params.ref} {params.cram} 2> {log} | bgzip > {output} 2>> {log}"""
@@ -351,6 +354,7 @@ rule kmer_plot:
         --output {output.html} \
         --counts {output.counts} \
         --sampleinfo {params.sampleinfo} \
+        --somatic \
         {input} 2> {log}"""
 
 
