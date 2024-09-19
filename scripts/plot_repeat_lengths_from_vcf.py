@@ -9,6 +9,7 @@ import sys
 def main():
     args = get_args()
     res = []
+    alts = []
     for vcf in args.input:
         name = basename(vcf).replace(".vcf.gz", "").replace("_FCX", "")
         try:
@@ -40,27 +41,32 @@ def main():
                                     "length": len(outlier),
                                 }
                             )
+                # also append the length of the ALT allele
+                for alt_allele in variant.ALT:
+                    alts.append(
+                        {
+                            "name": name,
+                            "alt_length": len(alt_allele),
+                        }
+                    )
         except Exception:
             sys.stderr.write(f"Problem parsing {name}\n\n\n")
             raise
     df = pd.DataFrame(res, columns=["name", "phase", "length"])
+    alts = (
+        pd.DataFrame(alts, columns=["name", "alt_length"])
+        .groupby("name")
+        .max()
+        .reset_index(names="name")
+    )
     if args.alphabetically:
         df = df.sort_values("name")
     else:
-        # sort by some convulted way of using the median in the larger haplotype, as an attempt to avoid sorting by the outliers
-        medians = (
-            df[df["phase"] != "outlier"]
-            .groupby(["name", "phase"])["length"]
-            .median()
-            .reset_index()
-            .rename(columns={"length": "median"})
+        # sort the names by the length of the alternative allele
+        # put the largest alternative allele first
+        df = df.merge(alts, on="name", how="left").sort_values(
+            "alt_length", ascending=False
         )
-        df = (
-            df.merge(medians, on=["name", "phase"], how="left")
-            .fillna(0)
-            .sort_values("median", ascending=False)
-        )
-
     if args.sampleinfo:
         sampleinfo = pd.read_excel(
             args.sampleinfo, usecols=["Gentli_ID", "PathDx1"]
@@ -68,28 +74,12 @@ def main():
         df = df.merge(sampleinfo, on="name", how="left").fillna("unknown/misc")
     else:
         df["Group"] = "unknown"
-    summary = (
-        df.loc[df["phase"] != "outlier", ["name", "phase", "median", "Group"]]
-        .drop_duplicates()
-        .pivot(index="name", values=["median", "Group"], columns="phase")
-    )
-    summary.columns = [
-        " ".join([str(c) for c in col]).strip() for col in summary.columns.values
-    ]
-    summary.drop(columns="Group 1").rename(columns={"Group 0": "Group"}).to_csv(
-        args.summary, sep="\t"
-    )
 
-    maxlengths = df.groupby(["name"]).max()
-    long_enough = maxlengths[maxlengths["length"] > args.minlen].index
-
+    # only keep names for which the alt is long enough
+    long_enough = alts.loc[alts["alt_length"] >= args.minlen, "name"]
     df = df[df["name"].isin(long_enough)]
     orders = df["name"].drop_duplicates()
 
-    # if is small, merge it with the unknown group
-    # counts = df.drop_duplicates(subset="name")["Group"].value_counts()
-    # for group in counts[counts <= 3].index:
-    #    df.loc[df["Group"] == group, "Group"] = "unknown/misc"
     # all groups that are not aFTLD-U are in-house controls
     df.loc[df["Group"] != "aFTLD-U", "Group"] = "in-house control"
 
@@ -134,11 +124,12 @@ def main():
         mirror=True,
     )
     if args.mark_hexamers:
+        maxlengths = df.groupby(["name"]).max()
         # add a star symbol as annotation to 3 specific lines: the one of rr_EMC1999_019, rr_NA16_299 and rr_NA11_305
         for name in ["rr_EMC1999_019", "rr_NA16_299", "rr_NA11_305", "rr_ERA09_35"]:
             if name in maxlengths.index:
                 fig.add_annotation(
-                    x=maxlengths.loc[name, "length"] + 100,
+                    x=maxlengths.loc[name, "length"] + 200,
                     y=name,
                     text="*",
                     showarrow=False,
@@ -158,15 +149,17 @@ def get_args():
         "-m", "--minlen", help="minimal length to plot", default=20, type=int
     )
     parser.add_argument(
-        "-s", "--summary", help="summary of repeat lengths", default="summary.tsv"
-    )
-    parser.add_argument(
         "--alphabetically", help="Sort the samples alphabetically", action="store_true"
     )
     parser.add_argument("--sampleinfo", help="excel file with sample information")
     parser.add_argument(
         "--mark_hexamers",
         help="Mark the hexamers in the plot",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--black_and_white",
+        help="Use symbols in addition of colors",
         action="store_true",
     )
     parser.add_argument(

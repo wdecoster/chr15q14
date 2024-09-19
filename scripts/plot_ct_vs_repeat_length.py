@@ -93,7 +93,7 @@ def main():
             usecols=["individual", "cohort", "copy number", "sex", "haplotype"],
         ).rename(columns={"cohort": "group", "individual": "name"})
         sampleinfo["copy number"] = sampleinfo["copy number"].round(2)
-        df = df.merge(sampleinfo, on="name", how="left")
+        df = df.merge(sampleinfo, on="name", how="left").drop_duplicates()
     df.to_csv(args.overview, index=False, sep="\t")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
@@ -116,7 +116,7 @@ def main():
                     df.loc[
                         (df["variant"] == locus) & (df["haplotype"] == "major")
                     ].drop(columns=["haplotype"]),
-                    title + " for the major haplotype",
+                    title + " for haplotype A",
                     args,
                     upper_limit=upper_limit,
                 )
@@ -129,7 +129,7 @@ def main():
                     df.loc[
                         (df["variant"] == locus) & (df["haplotype"] == "minor")
                     ].drop(columns=["haplotype"]),
-                    title + " for the minor haplotype",
+                    title + " for haplotype B",
                     args,
                     upper_limit=upper_limit,
                 )

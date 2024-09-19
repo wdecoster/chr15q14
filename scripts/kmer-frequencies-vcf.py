@@ -87,7 +87,7 @@ def main():
     df["CTCTCTCTCTCT"] = df["CTCTCTCTCTCT"].apply(lambda x: x if x > 0.01 else 0)
     df.to_csv(args.counts if args.counts else f"kmer{args.kmer}-counts.tsv", sep="\t")
     if args.nosort:
-        plot_heatmap(df.transpose(), k=args.kmer, outputfile=args.output)
+        plot_heatmap(df.transpose(), k=args.kmer, outputfile=args.output, args=args)
     else:
         plot_heatmap(
             df.sort_values(
@@ -100,6 +100,7 @@ def main():
             ).transpose(),
             k=args.kmer,
             outputfile=args.output,
+            args=args,
         )
 
 
@@ -136,7 +137,7 @@ def prune_counts(kmers):
     return {k: v / total_kmers for k, v in pruned.items()}
 
 
-def plot_heatmap(df, k, outputfile, max_missing=0.1):
+def plot_heatmap(df, k, outputfile, args, max_missing=0.1):
     color_scale = [(0, "white"), (1, "black")]
     # only keep rows that are not < 0.01 for too many samples
     mask1 = (df < 0.01).sum(axis=1) < ((1 - max_missing) * len(df.columns))
@@ -190,7 +191,7 @@ def plot_heatmap(df, k, outputfile, max_missing=0.1):
 
     fig = px.imshow(
         df.transpose(),
-        x=[rename_dict[c] for c in df.index],
+        x=[rename_dict.get(c, c) for c in df.index],
         labels=dict(
             x="",
             y="Individuals with an expanded repeat allele",
@@ -205,13 +206,19 @@ def plot_heatmap(df, k, outputfile, max_missing=0.1):
     )
     fig.update_yaxes(showticklabels=False)
 
+    title = (
+        f"Repeat composition (individual reads)"
+        if args.somatic
+        else "Repeat consensus sequence composition"
+    )
+
     fig.update_layout(
         plot_bgcolor="rgba(0, 0, 0, 0)",
         paper_bgcolor="rgba(0, 0, 0, 0)",
         height=800,
         width=600,
         font=dict(size=18),
-        title="Repeat composition",
+        title=title,
         xaxis={"dtick": 1},
     )
     fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
