@@ -167,6 +167,7 @@ rule all:
         combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
         ct_stretch=expand(os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"), target=targets),
         corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
+        corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
         # copy_number_plot=os.path.join(outdir, "plots", "copy_number.html"),
 
 
@@ -603,6 +604,28 @@ rule correlate_with_age:
         """
         python {params.script} {input} --sampleinfo {params.sample_info} > {output} 2> {log}
         """
+
+
+rule correlate_with_age_only_patients:
+    input:
+        os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"),
+    output:
+        os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/ct_stretch_age.log"),
+    params:
+        sample_info = "/home/wdecoster/cohorts/Individuals.xlsx",
+        script = os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/correlate_with_age.py",
+        ),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} {input} --pat_only --sampleinfo {params.sample_info} > {output} 2> {log}
+        """
+
 
 
 
