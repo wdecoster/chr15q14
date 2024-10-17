@@ -31,6 +31,8 @@ def main():
         .dropna(subset=["AGEATDEATH"])
         .drop_duplicates(subset=["name"])
     )
+    if args.pat_only:
+        df = df[df["group"] == "aFTLD-U"]
     df = df[
         (df["group"].isin(["aFTLD-U", "in-house control"]))
         & (df["AGEATDEATH"] > 0)
@@ -47,7 +49,7 @@ def main():
 
     annotation_location = {
         "major": {
-            "aFTLD-U": (0.99, 0.54),
+            "aFTLD-U": (0.99, 0.70),
             "in-house control": (0.80, 0.70),
         },
         "minor": {
@@ -122,22 +124,23 @@ def main():
                 showarrow=False,
                 font=dict(color="red", size=18),
             )
-            fig.add_annotation(
-                x=annotation_location[haplotype]["in-house control"][0],
-                y=annotation_location[haplotype]["in-house control"][1],
-                xref="x domain",
-                yref="y domain",
-                text=OLS(
-                    df[
-                        (df["haplotype"] == haplotype)
-                        & (df["group"].isin(["in-house control"]))
-                    ],
-                    variable,
-                ).__str__(),
-                align="left",
-                showarrow=False,
-                font=dict(color="black", size=18),
-            )
+            if not args.pat_only:
+                fig.add_annotation(
+                    x=annotation_location[haplotype]["in-house control"][0],
+                    y=annotation_location[haplotype]["in-house control"][1],
+                    xref="x domain",
+                    yref="y domain",
+                    text=OLS(
+                        df[
+                            (df["haplotype"] == haplotype)
+                            & (df["group"].isin(["in-house control"]))
+                        ],
+                        variable,
+                    ).__str__(),
+                    align="left",
+                    showarrow=False,
+                    font=dict(color="black", size=18),
+                )
             print(
                 fig.to_html(
                     include_plotlyjs="cdn",
@@ -158,6 +161,7 @@ def get_args():
     parser = ArgumentParser("Correlate age with variables related to the repeat")
     parser.add_argument("input", help="Path to the input table")
     parser.add_argument("--sampleinfo", help="Path to Individuals.xlsx")
+    parser.add_argument("--pat_only", help="Only include patients", action="store_true")
     return parser.parse_args()
 
 
