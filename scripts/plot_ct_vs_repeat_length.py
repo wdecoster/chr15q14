@@ -86,14 +86,17 @@ def main():
         df["highlight"] = df["name"].isin(args.sample)
     else:
         df["highlight"] = False
-    if args.groups:
+    if args.sampleinfo:
         sampleinfo = pd.read_csv(
-            args.groups,
+            args.sampleinfo,
             sep="\t",
-            usecols=["individual", "cohort", "copy number", "sex", "haplotype"],
+            usecols=["individual", "cohort", "sex", "haplotype"],
         ).rename(columns={"cohort": "group", "individual": "name"})
-        sampleinfo["copy number"] = sampleinfo["copy number"].round(2)
         df = df.merge(sampleinfo, on="name", how="left").drop_duplicates()
+    if args.copy_number:
+        copy_number = pd.read_csv(args.copy_number, sep="\t", header=None, names=["name", "copy number"])
+        copy_number["copy number"] = copy_number["copy number"].round(2)
+        df = df.merge(copy_number, on="name", how="left").drop_duplicates()
     df.to_csv(args.overview, index=False, sep="\t")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
@@ -284,7 +287,9 @@ def get_args():
         "-m", "--min-length", help="Minimum repeat length", type=int, default=20
     )
     parser.add_argument(
-        "-g", "--groups", help="Sampleinfo file to link samples to groups"
+        "--copy_number", help="File with copy number information to add to the table")
+    parser.add_argument(
+        "-s", "--sampleinfo", help="Sampleinfo file to link samples to groups"
     )
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
     parser.add_argument(

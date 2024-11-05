@@ -535,10 +535,11 @@ rule astronaut_multiple_samples:
 
 rule ct_vs_length:
     input:
-        expand(
+        vcfs = expand(
             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
             id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
         ),
+        copy_number = os.path.join(outdir, "mosdepth/copy_number.tsv"),
     output:
         plot = os.path.join(outdir, "plots/{target}/ct_vs_length.html"),
         overview = os.path.join(outdir, "analysis_overview_{target}.tsv"),
@@ -560,12 +561,13 @@ rule ct_vs_length:
         python {params.script} \
         --output {output.plot} \
         --overview {output.overview} \
-        --groups {params.sample_info} \
+        --sampleinfo {params.sample_info} \
+        --copy_number {input.copy_number} \
         --haplotypes \
         --xline {params.xline} \
         --yline {params.yline} \
         --arrow {params.arrows} \
-        {input} 2> {log} 
+        {input.vcfs} 2> {log} 
         """
 
 rule ct_stretch:
