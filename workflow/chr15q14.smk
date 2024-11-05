@@ -168,7 +168,7 @@ rule all:
         ct_stretch=expand(os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"), target=targets),
         corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
-        # copy_number_plot=os.path.join(outdir, "plots", "copy_number.html"),
+        copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
 
 
 
@@ -221,8 +221,8 @@ rule length_plot:
     input:
         expand(
             os.path.join(outdir, "strdust", "{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"] == "normal", "individual"], # this corresponds to our own cohort,
-        ),
+            id=crams.loc[crams["collection"] == "normal", "individual"], 
+        ), # this corresponds to our own cohort
     output:
         os.path.join(outdir, "plots", "{target}/length_plot.html"),
     log:
@@ -642,157 +642,80 @@ rule make_combined_inquistr_file:
         "{params.inquistr} combine {input} > {output} 2> {log}"
 
 
-# rule mosdepth:
-#     input:
-#         cram=get_cram,
-#     output:
-#         os.path.join(outdir, "mosdepth/{id}.regions.bed.gz"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/{id}-mosdepth.log"),
-#     params:
-#         chrom="chr15",
-#         window=100,
-#         ref=ref,
-#     conda:
-#         os.path.join(os.path.dirname(workflow.basedir), "envs/mosdepth.yml")
-#     threads: 5
-#     shell:
-#         """
-#         output=$(dirname {output}) && \
-#         mosdepth --mapq 10 \
-#         --chrom {params.chrom} \
-#         --by {params.window} \
-#         -t {threads} \
-#         --no-per-base \
-#         --fast-mode \
-#         --fasta {params.ref} \
-#         ${{output}}/{wildcards.id} {input} 2> {log}
-#         """
+rule mosdepth:
+    output:
+        os.path.join(outdir, "mosdepth/{id}.regions.bed.gz"),
+    log:
+        os.path.join(outdir, "logs/workflows/{id}-mosdepth.log"),
+    params:
+        cram=get_cram, # using this as a param to avoid checking for existence of the cram file, as remote files are not considered present, and presence of local files is already checked
+        chrom="chr15",
+        window=100,
+        ref=ref,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/mosdepth.yml")
+    threads: 5
+    shell:
+        """
+        output=$(dirname {output}) && \
+        mosdepth --mapq 10 \
+        --chrom {params.chrom} \
+        --by {params.window} \
+        -t {threads} \
+        --no-per-base \
+        --fast-mode \
+        --fasta {params.ref} \
+        ${{output}}/{wildcards.id} {params.cram} 2> {log}
+        """
 
 
-# rule mosdepth_chr16:
-#     input:
-#         cram=get_cram,
-#     output:
-#         os.path.join(outdir, "mosdepth_chr16/{id}.regions.bed.gz"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/{id}-mosdepth-chr16.log"),
-#     params:
-#         chrom="chr16",
-#         window=100,
-#         ref=ref,
-#     conda:
-#         os.path.join(os.path.dirname(workflow.basedir), "envs/mosdepth.yml")
-#     threads: 5
-#     shell:
-#         """
-#         output=$(dirname {output}) && \
-#         mosdepth --mapq 10 \
-#         --chrom {params.chrom} \
-#         --by {params.window} \
-#         -t {threads} \
-#         --no-per-base \
-#         --fast-mode \
-#         --fasta {params.ref} \
-#         ${{output}}/{wildcards.id} {input} 2> {log}
-#         """
+rule call_copy_number:
+    input:
+        os.path.join(outdir, "mosdepth/{id}.regions.bed.gz"),
+    output:
+        os.path.join(outdir, "mosdepth/copy_number_{id}.tsv"),
+    log:
+        os.path.join(outdir, "logs/workflows/calculate_copy_number_{id}.log"),
+    params:
+        call="chr15:34438297-34524132",
+        norm="chr15:54,033,377-56,279,876",
+        script=os.path.join(
+            os.path.dirname(workflow.basedir), "scripts/calculate_copy_number.py"
+        ),
+    shell:
+        "python {params.script} -i {input} -c {params.call} --control {input} -n {params.norm} > {output} 2> {log}"
 
 
-# rule call_copy_number:
-#     input:
-#         os.path.join(outdir, "mosdepth/{id}.regions.bed.gz"),
-#     output:
-#         os.path.join(outdir, "mosdepth/copy_number_{id}.tsv"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/calculate_copy_number_{id}.log"),
-#     params:
-#         call="chr15:34438297-34524132",
-#         norm="chr15:54,033,377-56,279,876",
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "analysis/calculate_copy_number.py"
-#         ),
-#     shell:
-#         "python {params.script} -i {input} -c {params.call} --control {input} -n {params.norm} > {output} 2> {log}"
+rule cat_copy_number_files:
+    input:
+        expand(
+            os.path.join(outdir, "mosdepth/copy_number_{id}.tsv"),
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
+        ),
+    output:
+        os.path.join(outdir, "mosdepth/copy_number.tsv"),
+    log:
+        os.path.join(outdir, "logs/workflows/cat_copy_number_files.log"),
+    shell:
+        "cat {input} | sort -k2,2n > {output} 2> {log}"
 
 
-# rule call_copy_number_with_other_chrom:
-#     input:
-#         chr15=os.path.join(outdir, "mosdepth/{id}.regions.bed.gz"),
-#         control=os.path.join(outdir, "mosdepth_chr16/{id}.regions.bed.gz"),
-#     output:
-#         os.path.join(outdir, "mosdepth/copy_number_other_chrom_{id}.tsv"),
-#     log:
-#         os.path.join(
-#             outdir, "logs/workflows/calculate_copy_number_other_chrom_{id}.log"
-#         ),
-#     params:
-#         call="chr15:34438297-34524132",
-#         norm="chr16:62522649-63522648",
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "analysis/calculate_copy_number.py"
-#         ),
-#     shell:
-#         "python {params.script} -i {input.chr15} -c {params.call} --control {input.control} -n {params.norm} > {output} 2> {log}"
-
-
-# rule cat_copy_number_files:
-#     input:
-#         expand(
-#             os.path.join(outdir, "mosdepth/copy_number_{id}.tsv"),
-#             id=crams["individual"],
-#         ),
-#     output:
-#         os.path.join(outdir, "mosdepth/copy_number.tsv"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/cat_copy_number_files.log"),
-#     shell:
-#         "cat {input} | sort -k2,2n > {output} 2> {log}"
-
-
-# rule cat_copy_number_files_with_other_chrom:
-#     input:
-#         expand(
-#             os.path.join(outdir, "mosdepth/copy_number_other_chrom_{id}.tsv"),
-#             id=crams["individual"],
-#         ),
-#     output:
-#         os.path.join(outdir, "mosdepth/copy_number_other_chrom.tsv"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/cat_copy_number_files_other_chrom.log"),
-#     shell:
-#         "cat {input} | sort -k2,2n > {output} 2> {log}"
-
-
-# rule plot_copy_number:
-#     input:
-#         os.path.join(outdir, "mosdepth/copy_number.tsv"),
-#     output:
-#         os.path.join(outdir, "plots/copy_number.html"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/plot_copy_number.log"),
-#     params:
-#         sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "scripts/plot_copy_numbers.py"
-#         ),
-#     shell:
-#         "python {params.script} -i {input} -o {output} --sampleinfo {params.sampleinfo} 2> {log}"
-
-
-# rule plot_copy_number_other_chrom:
-#     input:
-#         os.path.join(outdir, "mosdepth/copy_number_other_chrom.tsv"),
-#     output:
-#         os.path.join(outdir, "plots/copy_number_other_chrom.html"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/plot_copy_number_other_chrom.log"),
-#     params:
-#         sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "scripts/plot_copy_numbers.py"
-#         ),
-#     shell:
-#         "python {params.script} -i {input} -o {output} --sampleinfo {params.sampleinfo} 2> {log}"
+rule plot_copy_number:
+    input:
+        os.path.join(outdir, "mosdepth/copy_number.tsv"),
+    output:
+        os.path.join(outdir, "plots/copy_number.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/plot_copy_number.log"),
+    params:
+        sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
+        script=os.path.join(
+            os.path.dirname(workflow.basedir), "scripts/plot_copy_numbers.py"
+        ),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        "python {params.script} -i {input} -o {output} --sampleinfo {params.sampleinfo} 2> {log}"
 
 
 # rule join_lengths_and_kmers:
