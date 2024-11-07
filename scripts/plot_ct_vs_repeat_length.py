@@ -47,7 +47,9 @@ def main():
                         if len(alt) >= args.min_length and sup >= args.support
                     ]
                     if alts:
-                        alt, sup, stddev = max(alts, key=lambda x: len(x[0]))
+                        # if there are multiple alts, choose the on with the highest CT count
+                        sys.stderr.write(f"Warning: Multiple possible alts for {name} at {variant.CHROM}:{variant.POS}\n")
+                        alt, sup, stddev = max(alts, key=lambda x: count_ct_by_subtracting_motifs(x[0]))
                         res.append(
                             {
                                 "name": name,
@@ -57,6 +59,7 @@ def main():
                                 "%CCTT": kmer_fraction(alt, kmer="CCTT"),
                                 "%CCCTCT": kmer_fraction(alt, kmer="CCCTCT"),
                                 "%AT": kmer_fraction(alt, kmer="AT"),
+                                "CT_dimer_count": count_ct_by_subtracting_motifs(alt),
                                 "stddev": stddev,
                                 "support": sup,
                                 "sequence": alt,
@@ -76,6 +79,7 @@ def main():
             "%CCTT",
             "%CCCTCT",
             "%AT",
+            "CT_dimer_count",
             "stddev",
             "support",
             "sequence",
@@ -141,6 +145,12 @@ def main():
                     include_plotlyjs="cdn",
                     full_html=False,
                 )
+
+def count_ct_by_subtracting_motifs(seq):
+    motifs = ["CCCTCT", "CCCCT", "CCTT", "CCCT", "CTTT"]
+    for motif in motifs:
+        seq = seq.replace(motif, "")
+    return seq.count("CT")
 
 
 def make_scatter_plot(df, title, args, upper_limit=None):

@@ -534,6 +534,10 @@ rule astronaut_multiple_samples:
         """
 
 rule ct_vs_length:
+    """
+    Create a scatter plot of the CT repeat length versus the total repeat length.
+    Additionally, create an overview table
+    """
     input:
         vcfs = expand(
             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
@@ -570,26 +574,9 @@ rule ct_vs_length:
         {input.vcfs} 2> {log} 
         """
 
-rule ct_stretch:
-    input:
-        os.path.join(outdir, "analysis_overview_{target}.tsv"),
-    output:
-        os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/ct_stretch.log"),
-    params:
-        script=os.path.join(
-            os.path.dirname(workflow.basedir),
-            "scripts/ct-stretch.py",
-        ),
-    shell:
-        """
-        python {params.script} {input} > {output} 2> {log}
-        """
-
 rule correlate_with_age:
     input:
-        os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"),
+        os.path.join(outdir, "analysis_overview_{target}.tsv")
     output:
         os.path.join(outdir, "plots/{target}/correlations-with-age.html"),
     log:
@@ -610,7 +597,7 @@ rule correlate_with_age:
 
 rule correlate_with_age_only_patients:
     input:
-        os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"),
+        os.path.join(outdir, "analysis_overview_{target}.tsv")
     output:
         os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"),
     log:
@@ -718,51 +705,3 @@ rule plot_copy_number:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         "python {params.script} -i {input} -o {output} --sampleinfo {params.sampleinfo} 2> {log}"
-
-
-# rule join_lengths_and_kmers:
-#     input:
-#         golga=os.path.join(outdir, "{taget}/length_summary.tsv"),
-#         copy_number=os.path.join(outdir, "mosdepth/copy_number.tsv"),
-#         counts=os.path.join(outdir, "plots", "{target}/kmer_counts.tsv"),
-#     output:
-#         os.path.join(outdir, "summary/{target}.tsv"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/{target}/oin_lengths_and_kmers.log"),
-#     params:
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "analysis/make_fus_overview.py"
-#         ),
-#     conda:
-#         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-#     shell:
-#         "python {params.script} -l {input.golga} -c {input.copy_number} -k {input.counts} > {output} 2> {log}"
-
-
-# rule make_overview:
-#     input:
-#         tata=os.path.join(outdir, "{tata}/length_summary.tsv"),
-#         golga=os.path.join(outdir, "{golga8a}/length_summary.tsv"),
-#         mga=os.path.join(outdir, "{mga}/length_summary.tsv"),
-#         linc02177=os.path.join(outdir, "{linc02177}/length_summary.tsv"),
-#         copy_number=os.path.join(outdir, "mosdepth/copy_number.tsv"),
-#     output:
-#         os.path.join(outdir, "overview_table.tsv"),
-#     log:
-#         os.path.join(outdir, "logs/workflows/make_overview.log"),
-#     params:
-#         sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "scripts/make_overview.py"
-#         ),
-#     conda:
-#         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-#     shell:
-#         """
-#         python {params.script} \
-#         --tata {input.tata} \
-#         --golga {input.golga} \
-#         --mga {input.mga} \
-#         --linc {input.linc02177} \
-#         --cn {input.copy_number} > {output} 2> {log}
-#         """
