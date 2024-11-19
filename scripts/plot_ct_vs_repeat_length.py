@@ -49,7 +49,7 @@ def main():
                     if alts:
                         # if there are multiple alts, choose the on with the highest CT count
                         sys.stderr.write(f"Warning: Multiple possible alts for {name} at {variant.CHROM}:{variant.POS}\n")
-                        alt, sup, stddev = max(alts, key=lambda x: count_ct_by_subtracting_motifs(x[0]))
+                        alt, sup, stddev = max(alts, key=lambda x: (count_ct_by_subtracting_motifs(x[0]), len(x[0])))
                         res.append(
                             {
                                 "name": name,
