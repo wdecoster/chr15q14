@@ -15,7 +15,9 @@ def main():
         for vcff in args.vcf:
             kmers = Counter()
             vcf = VCF(vcff)
+            name = basename(vcff).replace(".vcf.gz", "").replace("_FCX", "")
             for v in vcf:
+                allele_used = []
                 for allele in [0, 1]:
                     genotype = v.genotypes[0][allele]
                     if genotype > 0 and len(v.ALT[genotype - 1]) > args.minlength:
@@ -25,15 +27,12 @@ def main():
                             if len(seq) > args.minlength
                         ]:
                             kmers.update(counts)
+                        allele_used.append(allele)
+                if len(allele_used) == 2:
+                    sys.stderr.write(f"Warning: more than one allele used for {name}\n")
                 pruned_kmers = prune_counts(kmers)
                 if pruned_kmers:
-                    pruned_kmers.update(
-                        {
-                            "individual": basename(vcff)
-                            .replace(".vcf.gz", "")
-                            .replace("_FCX", ""),
-                        }
-                    )
+                    pruned_kmers.update({"individual": name})
                     pruned_kmers_df = pd.DataFrame.from_dict(
                         pruned_kmers, orient="index"
                     ).transpose()
@@ -43,21 +42,20 @@ def main():
         for vcff in args.vcf:
             kmers = Counter()
             vcf = VCF(vcff)
+            name = basename(vcff).replace(".vcf.gz", "").replace("_FCX", "")
             for v in vcf:
+                allele_used = []
                 for allele in [0, 1]:
                     genotype = v.genotypes[0][allele]
                     if genotype > 0 and len(v.ALT[genotype - 1]) > args.minlength:
                         counts = count_kmers(v.ALT[genotype - 1], k=args.kmer)
                         kmers.update(counts)
+                        allele_used.append(allele)
+                if len(allele_used) == 2:
+                    sys.stderr.write(f"Warning: more than one allele used for {name}\n")
                 pruned_kmers = prune_counts(kmers)
                 if pruned_kmers:
-                    pruned_kmers.update(
-                        {
-                            "individual": basename(vcff)
-                            .replace(".vcf.gz", "")
-                            .replace("_FCX", ""),
-                        }
-                    )
+                    pruned_kmers.update({"individual": name})
                     pruned_kmers_df = pd.DataFrame.from_dict(
                         pruned_kmers, orient="index"
                     ).transpose()
@@ -70,8 +68,7 @@ def main():
         df = df.merge(sampleinfo, on="individual", how="left")
         df["Group"] = df["Group"].fillna("unknown/misc")
         # add a 'aFTLD-U' column which is 1 if the sample is aFTLD-U and 0 otherwise
-        df["aFTLD-U"] = 0
-        df.loc[df["Group"] == "aFTLD-U", "aFTLD-U"] = 1
+        df["aFTLD-U"] = df["Group"].apply(lambda x: 1 if x == "aFTLD-U" else 0)
         # the haplotype has to be encoded as 1 for major, 0.5 for minor and 0 for the rest
         df["Haplotype"] = 0
         df.loc[df["haplotype"] == "minor", "Haplotype"] = 0.5
