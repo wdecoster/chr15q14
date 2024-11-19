@@ -169,6 +169,7 @@ rule all:
         corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
         copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
+        table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
 
 
 
@@ -615,7 +616,27 @@ rule correlate_with_age_only_patients:
         python {params.script} {input} --pat_only --sampleinfo {params.sample_info} > {output} 2> {log}
         """
 
-
+rule table_of_carriers:
+    """
+    This rule uses the overview file(s) to create a table of haplotype carriers (major and minor) and formats it for publication in the supplementary data of the paper.
+    """
+    input:
+        overview = os.path.join(outdir, "analysis_overview_{target}.tsv"),
+    output:
+        os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/haplotype_carriers.log"),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/table_of_carriers.py",
+        ),
+    shell:
+        """
+        python {params.script} -i {input} -o {output} 2> {log}
+        """
 
 
 rule make_combined_inquistr_file:
