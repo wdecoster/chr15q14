@@ -165,10 +165,10 @@ rule all:
         kmer_plot=expand(os.path.join(outdir, "plots/{target}/kmer_plot.html"), target=targets),
         ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
         combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
-        ct_stretch=expand(os.path.join(outdir, "analysis_overview-ct-stretch_{target}.tsv"), target=targets),
         corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
         copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
+        overview = expand(os.path.join(outdir, "analysis_overview_{target}.tsv"), target=targets),
         table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
 
 
@@ -212,7 +212,7 @@ rule somatic_astronaut:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         --somatic -m 100 --publication \
         {input} -o {output} 2> {log}
         """
@@ -408,7 +408,7 @@ rule astronaut_all:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         -m 100 \
         -o {output} \
         --size {params.dotsize} \
@@ -438,7 +438,7 @@ rule astronaut_delT:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         -m 100 \
         -o {output} \
         --size {params.dotsize} \
@@ -468,7 +468,7 @@ rule astronaut_625:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         -m 100 \
         -o {output} \
         --size {params.dotsize} \
@@ -498,7 +498,7 @@ rule astronaut_relatives:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         --names {params.relative_names} \
         --label_size 20 \
         --alphabetic \
@@ -526,7 +526,7 @@ rule astronaut_multiple_samples:
     shell:
         """
         python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCCCCC \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         --names {params.duplicate_names} \
         --label_size 20 \
         --alphabetic \
