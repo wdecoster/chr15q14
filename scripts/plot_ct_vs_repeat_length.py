@@ -20,7 +20,7 @@ def main():
                         variant.format("SUP")[0],
                         variant.INFO.get("STDEV"),
                     ):
-                        if len(alt) >= args.min_length and sup >= args.support:
+                        if sup >= args.support:
                             res.append(
                                 {
                                     "name": name,
@@ -36,7 +36,7 @@ def main():
                                 }
                             )
                 else:
-                    # if not showing both alleles, show the longer one of the those with sufficient support
+                    # if not showing both alleles, choose one
                     alts = [
                         (alt, sup, stddev)
                         for alt, sup, stddev in zip(
@@ -44,10 +44,10 @@ def main():
                             variant.format("SUP")[0],
                             variant.INFO.get("STDEV"),
                         )
-                        if len(alt) >= args.min_length and sup >= args.support
+                        if sup >= args.support
                     ]
                     if alts:
-                        # if there are multiple alts, choose the on with the highest CT count
+                        # if there are multiple alts, choose the on with the highest CT count, and if there are multiple with the same count, choose the longest
                         sys.stderr.write(f"Warning: Multiple possible alts for {name} at {variant.CHROM}:{variant.POS}\n")
                         alt, sup, stddev = max(alts, key=lambda x: (count_ct_by_subtracting_motifs(x[0]), len(x[0])))
                         res.append(
@@ -102,6 +102,8 @@ def main():
         copy_number["copy number"] = copy_number["copy number"].round(2)
         df = df.merge(copy_number, on="name", how="left").drop_duplicates()
     df.to_csv(args.overview, index=False, sep="\t")
+    # filter on the minimum repeat length for plotting
+    df = df.loc[df["length"] >= args.min_length]
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
             title = (
