@@ -39,7 +39,6 @@ def main():
     df = df[df["length"] >= args.minlen]
     haplotype_alias = {"major": "A", "minor": "B", "none": "none"}
     df["haplotype"] = df["haplotype"].apply(lambda x: haplotype_alias[x])
-    df.to_csv("somatic_variation.tsv", sep="\t", index=False)
     fig = make_subplots(
         rows=1,
         cols=2,
