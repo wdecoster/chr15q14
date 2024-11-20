@@ -132,7 +132,8 @@ def get_method(wildcards):
 
 
 
-targets = ["golga8a_phased", "golga8a_unphased"]  # select loci from the keys in coords dictionary
+targets = ["golga8a_unphased"]  # select loci from the keys in coords dictionary
+# note that working with phased data is problematic for unphased samples, particularly 1000G
 assert all([t in coords for t in targets]), "Not all targets are present in the coords dictionary"
 
 rule all:
@@ -158,8 +159,8 @@ rule all:
             target=targets,
         ),
         astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"), target=targets),
-        astronaut_delT=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_delT.html"), target=targets),
-        astronaut_625=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_625.html"), target=targets),
+        astronaut_hapA=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapA.html"), target=targets),
+        astronaut_hapB=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapB.html"), target=targets),
         astronaut_relatives=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.html"), target=targets),
         astronaut_multiple_samples=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"), target=targets),
         kmer_plot=expand(os.path.join(outdir, "plots/{target}/kmer_plot.html"), target=targets),
@@ -170,6 +171,7 @@ rule all:
         copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
         overview = expand(os.path.join(outdir, "analysis_overview_{target}.tsv"), target=targets),
         table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
+        somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
 
 
 
@@ -256,7 +258,7 @@ rule length_plot_strip:
             os.path.dirname(workflow.basedir),
             "scripts/repeat_length_violin.py",
         ),
-        sample_info = "/home/wdecoster/fus-analysis/full_cohort_for_paper.tsv",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -309,6 +311,27 @@ rule length_plot_625:
         """python {params.script} -i {input} -o {output} --title "Repeat length per read for haplotype B" --mark_hexamers --minlen {params.minlen} --sampleinfo {params.sampleinfo} 2> {log}"""
 
 
+rule somatic_variation_plot:
+    input:
+        expand(
+            os.path.join(outdir, "strdust", "{{target}}/{id}.vcf.gz"),
+            id=crams.loc[crams["collection"] == "normal", "individual"],
+        ),
+    output:
+        os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/somatic_variation_plot.log"),
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/somatic_variation_plot.py",
+        ),
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        "python {params.script} -o {output} --sample_info {params.sample_info} {input} 2> {log}"
+
 # rule length_plot_duplicates:
 #     input:
 #         expand(
@@ -348,7 +371,7 @@ rule kmer_plot:
             os.path.dirname(workflow.basedir), "scripts/kmer-frequencies-vcf.py"
         ),
         kmer=12,
-        sampleinfo="/home/wdecoster/p200/fus-analysis/full_cohort_for_paper.tsv",
+        sampleinfo="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     log:
         os.path.join(outdir, "logs/{target}/kmer_plot.log"),
     shell:
@@ -389,151 +412,6 @@ rule kmer_plot:
 #         {input} 2> {log}"""
 
 
-rule astronaut_all:
-    input:
-        expand(
-            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"] == "normal", "individual"], # this corresponds to our own cohort
-        ),
-    output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
-    params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        dotsize=8
-    conda:
-        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-    shell:
-        """
-        python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
-        -o {output} \
-        --size {params.dotsize} \
-        --hide-labels --longest_only --publication \
-        --title "Repeat composition sequence" \
-        --sampleinfo {params.sample_info} \
-        {input} 2> {log}
-        """
-
-
-rule astronaut_delT:
-    input:
-        expand(
-            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[(crams["collection"] == "normal") & (crams["haplotype"] == 'major'), "individual"], # this corresponds to our own cohort, major haplotype carriers
-        ),
-    output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_delT.html"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_delT.log"),
-    params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        dotsize = 8,
-    conda:
-        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-    shell:
-        """
-        python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
-        -o {output} \
-        --size {params.dotsize} \
-        --hide-labels --longest_only --publication \
-        --title "Repeat composition sequence in carriers of haplotype A" \
-        --sampleinfo {params.sample_info} \
-        {input} 2> {log}
-        """
-
-
-rule astronaut_625:
-    input:
-        expand(
-            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[(crams["collection"] == "normal") & (crams["haplotype"] == 'minor'), "individual"], # this corresponds to our own cohort, minor haplotype carriers
-        ),
-    output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_625.html"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_625.log"),
-    params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        dotsize = 8,
-    conda:
-        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-    shell:
-        """
-        python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
-        -o {output} \
-        --size {params.dotsize} \
-        --hide-labels --longest_only --publication \
-        --title "Repeat composition sequence in carriers of haplotype B" \
-        --sampleinfo {params.sample_info} \
-        {input} 2> {log}
-        """
-
-rule astronaut_relatives:
-    input:
-        expand(
-            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"] == "relatives", "individual"], # this corresponds to the individuals with relatives in the cohort
-        ),
-    output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.html"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_relatives.log"),
-    params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        relative_names=fix_names_relatives,
-        dotsize = 8,
-    conda:
-        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-    shell:
-        """
-        python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        --names {params.relative_names} \
-        --label_size 20 \
-        --alphabetic \
-        --hide_allele_label \
-        --size {params.dotsize} \
-        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
-        """
-
-rule astronaut_multiple_samples:
-    input:
-        expand(
-            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=duplicates, # this corresponds to the individuals with multiple samples in the cohort
-        ),
-    output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"),
-    log:
-        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_multiple_samples.log"),
-    params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        duplicate_names=fix_names_duplicates
-    conda:
-        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-    shell:
-        """
-        python {params.script} \
-        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        --names {params.duplicate_names} \
-        --label_size 20 \
-        --alphabetic \
-        --hide_allele_label \
-        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
-        """
-
 rule ct_vs_length:
     """
     Create a scatter plot of the CT repeat length versus the total repeat length.
@@ -542,7 +420,7 @@ rule ct_vs_length:
     input:
         vcfs = expand(
             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort, without the relatives
         ),
         copy_number = os.path.join(outdir, "mosdepth/copy_number.tsv"),
     output:
@@ -637,6 +515,175 @@ rule table_of_carriers:
         """
         python {params.script} -i {input} -o {output} 2> {log}
         """
+
+
+rule prepare_astronaut_tables:
+    """
+    This rule slices the analysis_overview table into tables for aSTRonaut, to create the plots for the different groups of individuals.
+    """
+    input:
+        overview = os.path.join(outdir, "analysis_overview_{target}.tsv"),
+    output:
+        all = os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
+        hapA = os.path.join(outdir, "temp/analysis_overview_{target}_hapA.tsv"),
+        hapB = os.path.join(outdir, "temp/analysis_overview_{target}_hapB.tsv"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/prepare_astronaut_tables.log"),
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/prepare_astronaut_tables.py",
+        ),
+        all = crams.loc[crams["collection"] == "normal", "individual"].tolist(), # this corresponds to our own cohort
+        hapA = crams.loc[(crams["collection"] == "normal") & (crams["haplotype"] == 'major'), "individual"].tolist(), # this corresponds to our own cohort, major haplotype carriers
+        hapB = crams.loc[(crams["collection"] == "normal") & (crams["haplotype"] == 'minor'), "individual"].tolist(), # this corresponds to our own cohort, minor haplotype carriers 
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} -i {input} \
+        --all {params.all} --all_out {output.all} \
+        --hapA {params.hapA} --hapA_out {output.hapA} \
+        --hapB {params.hapB} --hapB_out {output.hapB} \
+        2> {log}
+        """
+
+rule astronaut_all:
+    input:
+        os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        dotsize=8
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        -m 100 \
+        -o {output} \
+        --size {params.dotsize} \
+        --hide-labels --longest_only --publication \
+        --title "Repeat composition sequence" \
+        --sampleinfo {params.sample_info} \
+        --table {input} 2> {log}
+        """
+
+
+rule astronaut_hapA:
+    input:
+        os.path.join(outdir, "temp/analysis_overview_{target}_hapA.tsv"),
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_hapA.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_hapA.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        dotsize = 8,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        -m 100 \
+        -o {output} \
+        --size {params.dotsize} \
+        --hide-labels --longest_only --publication \
+        --title "Repeat composition sequence in carriers of haplotype A" \
+        --sampleinfo {params.sample_info} \
+        --table {input} 2> {log}
+        """
+
+
+rule astronaut_hapB:
+    input:
+        os.path.join(outdir, "temp/analysis_overview_{target}_hapB.tsv"),        
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_hapB.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_hapB.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        dotsize = 8,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        -m 100 \
+        -o {output} \
+        --size {params.dotsize} \
+        --hide-labels --longest_only --publication \
+        --title "Repeat composition sequence in carriers of haplotype B" \
+        --sampleinfo {params.sample_info} \
+        --table {input} 2> {log}
+        """
+
+rule astronaut_relatives:
+    input:
+        expand(
+            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
+            id=crams.loc[crams["collection"] == "relatives", "individual"], # this corresponds to the individuals with relatives in the cohort
+        ),
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_relatives.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        relative_names=fix_names_relatives,
+        dotsize = 8,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        --names {params.relative_names} \
+        --label_size 20 \
+        --alphabetic \
+        --hide_allele_label \
+        --size {params.dotsize} \
+        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
+        """
+
+rule astronaut_multiple_samples:
+    input:
+        expand(
+            os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
+            id=duplicates, # this corresponds to the individuals with multiple samples in the cohort
+        ),    
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_multiple_samples.log"),
+    params:
+        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        duplicate_names=fix_names_duplicates
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        --names {params.duplicate_names} \
+        --label_size 20 \
+        --alphabetic \
+        --hide_allele_label \
+        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
+        """
+
 
 
 rule make_combined_inquistr_file:
