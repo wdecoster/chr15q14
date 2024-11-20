@@ -90,9 +90,8 @@ def main():
         sampleinfo = pd.read_csv(
             args.groups,
             sep="\t",
-            usecols=["individual", "cohort", "copy number", "sex"],
+            usecols=["individual", "cohort", "sex"],
         ).rename(columns={"cohort": "group", "individual": "name"})
-        sampleinfo["copy number"] = sampleinfo["copy number"].round(2)
         df = df.merge(sampleinfo, on="name", how="left").sort_values("group")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
@@ -127,7 +126,6 @@ def make_violin_plot(df, title, args):
             "support",
             "stddev",
             "sex",
-            "copy number",
             "haplotype" if "haplotype" in df.columns else None,
         ],
         title=title,
