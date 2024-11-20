@@ -18,6 +18,9 @@ def main():
             name = basename(vcff).replace(".vcf.gz", "").replace("_FCX", "")
             for v in vcf:
                 allele_used = []
+                # this code is just adding the kmers from both alleles together, which could be suboptimal in the case of two different expansions on both haplotypes
+                # however, this is rather rare, and most typically those are incorrectly phased alleles due to large somatic differences
+                # I checked this by making an astronaut plot for the samples that triggered the warning below, and only one sample is problematic
                 for allele in [0, 1]:
                     genotype = v.genotypes[0][allele]
                     if genotype > 0 and len(v.ALT[genotype - 1]) > args.minlength:
