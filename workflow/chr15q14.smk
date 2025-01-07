@@ -172,6 +172,7 @@ rule all:
         overview = expand(os.path.join(outdir, "analysis_overview_{target}.tsv"), target=targets),
         table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
         somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
+        cramino = os.path.join(outdir, "cramino/cramino-all.txt"),
 
 
 
@@ -420,7 +421,7 @@ rule ct_vs_length:
     input:
         vcfs = expand(
             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort, without the relatives
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel", "mayo"]), "individual"], # this corresponds to the full cohort, without the relatives
         ),
         copy_number = os.path.join(outdir, "mosdepth/copy_number.tsv"),
     output:
@@ -747,7 +748,7 @@ rule cat_copy_number_files:
     input:
         expand(
             os.path.join(outdir, "mosdepth/copy_number_{id}.tsv"),
-            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel"]), "individual"], # this corresponds to the full cohort
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel", "mayo"]), "individual"], # this corresponds to the full cohort
         ),
     output:
         os.path.join(outdir, "mosdepth/copy_number.tsv"),
@@ -773,3 +774,33 @@ rule plot_copy_number:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         "python {params.script} -i {input} -o {output} --sampleinfo {params.sampleinfo} 2> {log}"
+    
+rule cramino:
+    input:
+        cram=get_cram,
+    output:
+        os.path.join(outdir, "cramino/{id}.cramino"),
+    log:
+        os.path.join(outdir, "logs/workflows/{id}-cramino.log"),
+    params:
+        executable="/home/wdecoster/repositories/cramino/target/release/cramino",
+        ref=ref,
+    threads:
+        4
+    shell:
+        """
+        {params.executable} --reference {params.ref} --threads {threads} {input.cram} > {output} 2> {log}
+        """
+
+rule gather_cramino:
+    input:
+        expand(os.path.join(outdir, "cramino/{id}.cramino"), id=crams.loc[crams["collection"] == "normal", "individual"])
+    output:
+        os.path.join(outdir, "cramino/cramino-all.txt"),
+    log:
+        os.path.join(outdir, "logs/workflows/gather_cramino.log"),
+    params:
+        script = os.path.join(os.path.dirname(workflow.basedir), "scripts/gather_cramino.py"),
+    shell:
+        "python {params.script} -i {input} -o {output} 2> {log}"
+        
