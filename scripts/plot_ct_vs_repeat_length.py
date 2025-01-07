@@ -170,7 +170,8 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             "aFTLD-U": "red",
             "in-house control": "black",
         },
-        # symbol="haplotype" if "haplotype" in df.columns else None,
+        #symbol="haplotype" if "haplotype" in df.columns else None,
+        #symbol_sequence=["x", "cross", "circle"],
         hover_data=[
             "name",
             "%CCTT",
@@ -224,12 +225,12 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                     ax=20,
                     ay=20,
                 )
-    fig.update_traces(marker=dict(size=6, opacity=0.5))
+    fig.update_traces(marker=dict(size=9, opacity=0.5))
     fig.update_layout(
         plot_bgcolor="white",
         font=dict(size=20),
         legend=dict(
-            title="Group",
+            title="",
             itemsizing="constant",
             yanchor="top",
             y=0.99,
@@ -256,6 +257,91 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         range=[0, upper_limit],
         title_text="Repeat length",
     )
+
+    # I don't like how the legend now looks, with both the group and haplotype in the same legend, resulting in 9 items
+    # I want to have the group in the legend, and the haplotype as a separate legend
+    # I want a separate legend for the group, and a separate legend for the haplotype
+    if "haplotype" in df.columns:
+        symbol_map = {"major": "x", "minor": "cross", "none": "circle"}
+
+        # for each trace update marker symbol to list of symbols that correspond to haplotype
+
+        for trace in fig.data:
+            trace_haplotypes = df[df["group"] == trace.name]["haplotype"]
+            trace.update(marker_symbol=[symbol_map[hap] for hap in trace_haplotypes])
+
+        # add a legend for the haplotype, with the correct symbols
+        fig.for_each_trace(lambda trace: trace.update(showlegend=False))
+        import plotly.graph_objects as go
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="circle", size=10, color="teal"),
+                name="1000G",
+                legendgroup="group",
+                legendgrouptitle=dict(text="Group")
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="circle", size=10, color="red"),
+                name="aFTLD-U",
+                legendgroup="group",
+                legendgrouptitle=dict(text="Group"),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="circle", size=10, color="black"),
+                name="in-house control",
+                legendgroup="group",
+                legendgrouptitle=dict(text="Group"),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="x", size=10, color="grey"),
+                name="Haplotype A",
+                legendgroup="hap",
+                legendgrouptitle=dict(text="Haplotype")
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="cross", size=10, color="grey"),
+                name="Haplotype B",
+                legendgroup="hap",
+                legendgrouptitle=dict(text="Haplotype")
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(symbol="circle", size=10, color="grey"),
+                name="No associated haplotype",
+                legendgroup="hap",
+                legendgrouptitle=dict(text="Haplotype")
+            )
+        )
+
+
     if df["length"].max() > upper_limit:
         sys.stderr.write(
             "Warning: Some samples have repeat lengths longer than the current y-axis limit\n"
