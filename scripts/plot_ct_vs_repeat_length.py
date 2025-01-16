@@ -225,7 +225,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                     ax=20,
                     ay=20,
                 )
-    fig.update_traces(marker=dict(size=9, opacity=0.5))
+    fig.update_traces(marker=dict(size=9, opacity=0.7))
     fig.update_layout(
         plot_bgcolor="white",
         font=dict(size=20),
