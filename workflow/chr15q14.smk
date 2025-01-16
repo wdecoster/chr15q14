@@ -149,11 +149,11 @@ rule all:
             target=targets,
         ),
         length=expand(
-            os.path.join(outdir, "plots", "{target}/length_plot.html"),
+            os.path.join(outdir, "plots", "{target}/somatic_length_plot.html"),
             target=targets,
         ),
-        lengthdelT=expand(os.path.join(outdir, "plots", "{target}/length_plot_delT.html"), target=targets),
-        length625=expand(os.path.join(outdir, "plots", "{target}/length_plot_625.html"), target=targets),
+        #lengthdelT=expand(os.path.join(outdir, "plots", "{target}/length_plot_delT.html"), target=targets),
+        #length625=expand(os.path.join(outdir, "plots", "{target}/length_plot_625.html"), target=targets),
         length_strip = expand(
             os.path.join(outdir, "plots", "{target}/length_plot_violin.html"),
             target=targets,
@@ -172,8 +172,7 @@ rule all:
         overview = expand(os.path.join(outdir, "analysis_overview_{target}.tsv"), target=targets),
         table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
         somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
-        cramino = os.path.join(outdir, "cramino/cramino-all.txt"),
-
+        sex_check = os.path.join(outdir, "sex_check.html"),
 
 
 
@@ -221,14 +220,14 @@ rule somatic_astronaut:
         """
 
 
-rule length_plot:
+rule somatic_length_plot:
     input:
         expand(
             os.path.join(outdir, "strdust", "{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"] == "normal", "individual"], 
-        ), # this corresponds to our own cohort
+            id=crams.loc[crams["collection"].isin(["normal", "1000G", "owen", "kristel", "mayo"]), "individual"],
+        ), # this corresponds to the full cohort, without the relatives
     output:
-        os.path.join(outdir, "plots", "{target}/length_plot.html"),
+        os.path.join(outdir, "plots", "{target}/somatic_length_plot.html"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/length_plot.log"),
     params:
@@ -237,19 +236,19 @@ rule length_plot:
             "scripts/plot_repeat_lengths_from_vcf.py",
         ),
         minlen=100,
-        sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
+        sampleinfo="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        """python {params.script} -i {input} -o {output} --title "Repeat length per read" --mark_hexamers --minlen {params.minlen} --sampleinfo {params.sampleinfo} 2> {log}"""
+        """python {params.script} -i {input} -o {output} --title "Repeat length per read" --minlen {params.minlen} --sampleinfo {params.sampleinfo} 2> {log}"""
 
 
 rule length_plot_strip:
     input:
         expand(
             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-            id=crams.loc[crams["collection"] == "normal", "individual"], # this corresponds to our own cohort
-        ),
+            id=crams.loc[crams["collection"] == "normal", "individual"], 
+        ), # this corresponds to our own cohort
     output:
         os.path.join(outdir, "plots", "{target}/length_plot_violin.html"),
     log:
@@ -260,10 +259,11 @@ rule length_plot_strip:
             "scripts/repeat_length_violin.py",
         ),
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        show_line = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        "python {params.script} -o {output} -g {params.sample_info} {input} 2> {log}"
+        "python {params.script} --line {params.show_line} -o {output} -g {params.sample_info} {input} 2> {log}"
 
 
 rule length_plot_delT:
@@ -372,6 +372,7 @@ rule kmer_plot:
             os.path.dirname(workflow.basedir), "scripts/kmer-frequencies-vcf.py"
         ),
         kmer=12,
+        minlength=100,
         sampleinfo="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     log:
         os.path.join(outdir, "logs/{target}/kmer_plot.log"),
@@ -381,36 +382,9 @@ rule kmer_plot:
         -k {params.kmer} \
         --output {output.html} \
         --counts {output.counts} \
+        --minlength {params.minlength}
         --sampleinfo {params.sampleinfo} \
         {input} 2> {log}"""
-
-# rule kmer_plot_duplicates:
-#     input:
-#         expand(
-#             os.path.join(outdir, "strdust/{{target}}/{id}.vcf.gz"),
-#             id=duplicates,
-#         ),
-#     output:
-#         html=os.path.join(outdir, "plots", "{target}/kmer_plot_duplicates.html"),
-#         counts=os.path.join(outdir, "plots", "{target}/kmer_counts_duplicates.tsv"),
-#     conda:
-#         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
-#     params:
-#         script=os.path.join(
-#             os.path.dirname(workflow.basedir), "analysis/kmer-frequencies-vcf.py"
-#         ),
-#         kmer=12,
-#         sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
-#     log:
-#         os.path.join(outdir, "logs/{target}/kmer_plot_duplicates.log"),
-#     shell:
-#         """
-#         python {params.script} \
-#         -k {params.kmer} \
-#         --output {output.html} \
-#         --counts {output.counts} \
-#         --sampleinfo {params.sampleinfo} \
-#         {input} 2> {log}"""
 
 
 rule ct_vs_length:
@@ -436,7 +410,7 @@ rule ct_vs_length:
         ),
         sample_info = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         xline = 0.8,
-        yline = 400,
+        yline = 450,
         arrows = "rr_UCL2783,rr_CW05_004"
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
@@ -560,18 +534,20 @@ rule astronaut_all:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize=8
+        minsize = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
+        -m {params.minsize} \
         -o {output} \
         --size {params.dotsize} \
         --hide-labels --longest_only --publication \
         --title "Repeat composition sequence" \
         --sampleinfo {params.sample_info} \
+        --height 1200 \
         --table {input} 2> {log}
         """
 
@@ -587,13 +563,14 @@ rule astronaut_hapA:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize = 8,
+        minsize = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
+        -m {params.minsize} \
         -o {output} \
         --size {params.dotsize} \
         --hide-labels --longest_only --publication \
@@ -614,13 +591,14 @@ rule astronaut_hapB:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize = 8,
+        minsize = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
-        -m 100 \
+        -m {params.minsize} \
         -o {output} \
         --size {params.dotsize} \
         --hide-labels --longest_only --publication \
@@ -644,6 +622,7 @@ rule astronaut_relatives:
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         relative_names=fix_names_relatives,
         dotsize = 8,
+        minsize = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -655,7 +634,9 @@ rule astronaut_relatives:
         --alphabetic \
         --hide_allele_label \
         --size {params.dotsize} \
-        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
+        {input} \
+        -m {params.minsize} \
+        -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
         """
 
 rule astronaut_multiple_samples:
@@ -672,6 +653,7 @@ rule astronaut_multiple_samples:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         duplicate_names=fix_names_duplicates
+        minsize =100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -682,7 +664,7 @@ rule astronaut_multiple_samples:
         --label_size 20 \
         --alphabetic \
         --hide_allele_label \
-        {input} -m 100 -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
+        {input} -m {params.minsize} -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
         """
 
 
@@ -789,7 +771,7 @@ rule cramino:
         4
     shell:
         """
-        {params.executable} --reference {params.ref} --threads {threads} {input.cram} > {output} 2> {log}
+        {params.executable} --karyotype --reference {params.ref} --threads {threads} {input.cram} > {output} 2> {log}
         """
 
 rule gather_cramino:
@@ -803,4 +785,18 @@ rule gather_cramino:
         script = os.path.join(os.path.dirname(workflow.basedir), "scripts/gather_cramino.py"),
     shell:
         "python {params.script} -i {input} -o {output} 2> {log}"
-        
+
+rule sex_check:
+    input:
+        os.path.join(outdir, "cramino/cramino-all.txt"),
+    output:
+        os.path.join(outdir, "sex_check.html"),
+    log:
+        os.path.join(outdir, "logs/sex_check.log"),
+    params:
+        script = os.path.join(os.path.dirname(workflow.basedir), "scripts/sex_check.py"),
+        cohort = "/home/wdecoster/cohorts/Individuals.xlsx",
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        "python {params.script} -c {input} -o {output} --sampleinfo {params.cohort} 2> {log}"
