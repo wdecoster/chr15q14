@@ -15,7 +15,7 @@ def main():
     # add a column with the alias, including a number to distinguish between individuals with the same group
     group_alias = {"1000G": "1000G", "in-house": "CON", "aFTLD-U": "aFTLD-U"}
     df["alias"] = df.apply(lambda x: group_alias[x["group"]] + "_" + str(x["number"]) if x["group"] != "1000G" else x["name"], axis=1)
-    df[["name", "alias", "group", "haplotype", "sex", "copy number", "length", "%CT", "%CCCTCT", "CT_dimer_count"]].to_excel(args.output, index=False)
+    df[["name", "alias", "group", "haplotype", "copy number", "length", "%CT", "%CCCTCT", "CT_dimer_count"]].to_excel(args.output, index=False)
 
 
 def get_args():
