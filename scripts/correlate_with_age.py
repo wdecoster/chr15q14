@@ -40,7 +40,6 @@ def main():
         & (~df["name"].isin(["rr_PIDN4463", "rr_UCL2783"]))
     ]
     df["repeat_length_CT"] = df["length"] * df["%CT"]
-    df["CT_dimer_count"] = df["CT_dimer_count"] * 2
 
     haplotype_alias = {
         "major": "haplotype A",
