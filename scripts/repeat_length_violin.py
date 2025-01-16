@@ -130,6 +130,8 @@ def make_violin_plot(df, title, args):
         ],
         title=title,
     )
+    if args.line:
+        fig.add_hline(y=args.line, line_dash="dash", line_color="grey")
     # make the dots smaller
     # fig.update_traces(spanmode="hard", marker=dict(size=4, color="black"))
     fig.update_traces(marker=dict(size=4, color="black"), jitter=1.0)
@@ -198,6 +200,7 @@ def get_args():
     parser.add_argument(
         "-g", "--groups", help="Sampleinfo file to link samples to groups"
     )
+    parser.add_argument("--line", help="Height to show a vertical line on", type=int)
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"
