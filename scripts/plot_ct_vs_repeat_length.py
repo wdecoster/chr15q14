@@ -236,9 +236,11 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             y=0.99,
             xanchor="left",
             x=0.05,
+            font=dict(size=16),
         ),
         width=1000,
         height=600,
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     fig.update_xaxes(
         showline=True,
@@ -340,7 +342,6 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                 legendgrouptitle=dict(text="Haplotype")
             )
         )
-
 
     if df["length"].max() > upper_limit:
         sys.stderr.write(
