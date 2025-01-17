@@ -165,6 +165,7 @@ rule all:
         astronaut_multiple_samples=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"), target=targets),
         kmer_plot=expand(os.path.join(outdir, "plots/{target}/kmer_plot.html"), target=targets),
         ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
+        ct_dimer_strip=expand(os.path.join(outdir, "plots/{target}/ct_dimer_strip.html"), target=targets),
         combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
         corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
@@ -382,7 +383,7 @@ rule kmer_plot:
         -k {params.kmer} \
         --output {output.html} \
         --counts {output.counts} \
-        --minlength {params.minlength}
+        --minlength {params.minlength} \
         --sampleinfo {params.sampleinfo} \
         {input} 2> {log}"""
 
@@ -426,6 +427,25 @@ rule ct_vs_length:
         --yline {params.yline} \
         --arrow {params.arrows} \
         {input.vcfs} 2> {log} 
+        """
+
+rule ct_dimer_strip:
+    input:
+        os.path.join(outdir, "analysis_overview_{target}.tsv"),
+    output:
+        os.path.join(outdir, "plots/{target}/ct_dimer_strip.html"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/ct_dimer_strip.log"),
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/plot_ct_dimer_strip.py",
+        ),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} -i {input} -o {output} 2> {log}
         """
 
 rule correlate_with_age:
@@ -533,7 +553,7 @@ rule astronaut_all:
     params:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        dotsize=8
+        dotsize=8,
         minsize = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
@@ -652,7 +672,7 @@ rule astronaut_multiple_samples:
     params:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-        duplicate_names=fix_names_duplicates
+        duplicate_names=fix_names_duplicates,
         minsize =100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
