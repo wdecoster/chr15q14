@@ -89,7 +89,7 @@ def main():
         color_discrete_map={
             "1000G": "teal",
             "aFTLD-U": "red",
-            "in-house control": "black",
+            "in-house non-aFTLD-U": "black",
         },
         orientation="h",
     )
@@ -103,6 +103,7 @@ def main():
         width=800,
         font=dict(size=20),
         legend=dict(yanchor="bottom", y=0.01, xanchor="right", x=0.99),
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     fig.update_xaxes(
         showgrid=True,

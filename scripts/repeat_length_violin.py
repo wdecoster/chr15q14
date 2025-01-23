@@ -112,7 +112,7 @@ def main():
 def make_violin_plot(df, title, args):
     # color the plot based on the groups column if it exists
     # change the in-house controls label with a line break
-    df["group"] = df["group"].replace("in-house control", "in-house<br>control")
+    df["group"] = df["group"].replace("in-house non-aFTLD-U", "in-house<br>non-aFTLD-U")
     fig = px.strip(
         df,
         x="group",
@@ -141,6 +141,7 @@ def make_violin_plot(df, title, args):
     fig.update_layout(
         font=dict(size=18),
         legend=dict(title="Sample", itemsizing="constant"),
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     # show zerolines
     fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)

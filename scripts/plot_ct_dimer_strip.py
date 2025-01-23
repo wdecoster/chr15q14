@@ -7,7 +7,7 @@ def main():
     args = get_args()
     df = pd.read_csv(args.input, sep="\t").drop_duplicates(subset=["name"])
 
-    df = df[(df["group"].isin(["aFTLD-U", "in-house control", "1000G"]))]
+    df = df[(df["group"].isin(["aFTLD-U", "in-house non-aFTLD-U", "1000G"]))]
 
     haplotype_alias = {
         "major": "Haplotype A",
@@ -16,8 +16,20 @@ def main():
     }
     df["Haplotype"] = df["haplotype"].map(haplotype_alias)
 
-    fig = px.strip(df.sort_values("Haplotype", ascending=False), x="CT_dimer_count", y="Haplotype", color="group", hover_data=["name"], title="CT dimer count", labels={"CT_dimer_count": "Number of CT dimers"}, 
-                   color_discrete_map={"aFTLD-U": "red", "in-house control": "black", "1000G": "teal"})
+    fig = px.strip(
+        df.sort_values("Haplotype", ascending=False),
+        x="CT_dimer_count",
+        y="Haplotype",
+        color="group",
+        hover_data=["name"],
+        title="CT dimer count",
+        labels={"CT_dimer_count": "Number of CT dimers"},
+        color_discrete_map={
+            "aFTLD-U": "red",
+            "in-house non-aFTLD-U": "black",
+            "1000G": "teal",
+        },
+    )
     fig.add_vline(x=190, line_width=2, line_dash="dash", line_color="black")
 
     fig.update_traces(marker=dict(size=6, opacity=0.7))
