@@ -112,7 +112,7 @@ def main():
 def make_violin_plot(df, title, args):
     # color the plot based on the groups column if it exists
     # change the in-house controls label with a line break
-    df["group"] = df["group"].replace("in-house control", "in-house<br>control")
+    df["group"] = df["group"].replace("in-house non-aFTLD-U", "in-house<br>non-aFTLD-U")
     fig = px.strip(
         df,
         x="group",
@@ -130,6 +130,8 @@ def make_violin_plot(df, title, args):
         ],
         title=title,
     )
+    if args.line:
+        fig.add_hline(y=args.line, line_dash="dash", line_color="grey")
     # make the dots smaller
     # fig.update_traces(spanmode="hard", marker=dict(size=4, color="black"))
     fig.update_traces(marker=dict(size=4, color="black"), jitter=1.0)
@@ -139,6 +141,7 @@ def make_violin_plot(df, title, args):
     fig.update_layout(
         font=dict(size=18),
         legend=dict(title="Sample", itemsizing="constant"),
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     # show zerolines
     fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
@@ -198,6 +201,7 @@ def get_args():
     parser.add_argument(
         "-g", "--groups", help="Sampleinfo file to link samples to groups"
     )
+    parser.add_argument("--line", help="Height to show a vertical line on", type=int)
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"

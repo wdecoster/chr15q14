@@ -68,9 +68,9 @@ def main():
             "alt_length", ascending=False
         )
     if args.sampleinfo:
-        sampleinfo = pd.read_excel(
-            args.sampleinfo, usecols=["Gentli_ID", "PathDx1"]
-        ).rename(columns={"Gentli_ID": "name", "PathDx1": "Group"})
+        sampleinfo = pd.read_csv(
+            args.sampleinfo, usecols=["individual", "cohort"], sep="\t"
+        ).rename(columns={"individual": "name", "cohort": "Group"})
         df = df.merge(sampleinfo, on="name", how="left").fillna("unknown/misc")
     else:
         df["Group"] = "unknown"
@@ -80,9 +80,6 @@ def main():
     df = df[df["name"].isin(long_enough)]
     orders = df["name"].drop_duplicates()
 
-    # all groups that are not aFTLD-U are in-house controls
-    df.loc[df["Group"] != "aFTLD-U", "Group"] = "in-house control"
-
     fig = px.strip(
         df,
         y="name",
@@ -90,8 +87,9 @@ def main():
         color="Group",
         stripmode="overlay",
         color_discrete_map={
+            "1000G": "teal",
             "aFTLD-U": "red",
-            "in-house control": "black",
+            "in-house non-aFTLD-U": "black",
         },
         orientation="h",
     )
@@ -105,6 +103,7 @@ def main():
         width=800,
         font=dict(size=20),
         legend=dict(yanchor="bottom", y=0.01, xanchor="right", x=0.99),
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     fig.update_xaxes(
         showgrid=True,

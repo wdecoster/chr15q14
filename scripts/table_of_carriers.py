@@ -9,13 +9,20 @@ def main():
     df["haplotype"] = df["haplotype"].apply(lambda x: haplotype_alias[x])
     df = df.sort_values(by=["haplotype", "group", "CT_dimer_count"], ascending=[True, True, False]).reset_index(drop=True)
     df["number"] = df.index + 1
-    df["group"] = df["group"].apply(lambda x: "in-house" if x == "in-house control" else x)
+
     # introduce anonymous aliases for the individuals, with PAT1 etc for patients and CON1 etc for controls
     # but keep 1000G samples with their original names
     # add a column with the alias, including a number to distinguish between individuals with the same group
-    group_alias = {"1000G": "1000G", "in-house": "CON", "aFTLD-U": "aFTLD-U"}
+    group_alias = {
+        "1000G": "1000G",
+        "in-house non-aFTLD-U": "CON",
+        "aFTLD-U": "aFTLD-U",
+    }
     df["alias"] = df.apply(lambda x: group_alias[x["group"]] + "_" + str(x["number"]) if x["group"] != "1000G" else x["name"], axis=1)
-    df[["name", "alias", "group", "haplotype", "sex", "copy number", "length", "%CT", "%CCCTCT", "CT_dimer_count"]].to_excel(args.output, index=False)
+    df["classifier1"] = df.apply(lambda x: "pathogenic" if x["length"] >= 450 and x["%CT"] >= 0.8 else "", axis=1)
+    df["classifier2"] = df["CT_dimer_count"].apply(lambda x: "pathogenic" if x >= 190 else "")
+    columns = ["name", "alias", "group", "haplotype", "copy number", "source tissue", "length", "%CT", "%CCCTCT", "CT_dimer_count", "classifier1", "classifier2"]
+    df[columns].to_excel(args.output, index=False)
 
 
 def get_args():

@@ -94,7 +94,7 @@ def main():
         sampleinfo = pd.read_csv(
             args.sampleinfo,
             sep="\t",
-            usecols=["individual", "cohort", "sex", "haplotype"],
+            usecols=["individual", "cohort", "sex", "haplotype", "source tissue"],
         ).rename(columns={"cohort": "group", "individual": "name"})
         df = df.merge(sampleinfo, on="name", how="left").drop_duplicates()
     if args.copy_number:
@@ -102,7 +102,6 @@ def main():
         copy_number["copy number"] = copy_number["copy number"].round(2)
         df = df.merge(copy_number, on="name", how="left").drop_duplicates()
     df.to_csv(args.overview, index=False, sep="\t")
-    # filter on the minimum repeat length for plotting
     df = df.loc[df["length"] >= args.min_length]
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
@@ -148,10 +147,10 @@ def main():
                     full_html=False,
                 )
 
+
 def count_ct_by_subtracting_motifs(seq):
-    motifs = ["CCCTCT", "CCCCT", "CCTT", "CCCT", "CTTT"]
-    for motif in motifs:
-        seq = seq.replace(motif, "")
+    for motif in ["CCCTCT", "CCCCT", "CCTTT", "CCTT", "CCCT", "CTTT"]:
+        seq = seq.replace(motif, "-")
     return seq.count("CT")
 
 
@@ -168,10 +167,10 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         color_discrete_map={
             "1000G": "teal",
             "aFTLD-U": "red",
-            "in-house control": "black",
+            "in-house non-aFTLD-U": "black",
         },
-        #symbol="haplotype" if "haplotype" in df.columns else None,
-        #symbol_sequence=["x", "cross", "circle"],
+        # symbol="haplotype" if "haplotype" in df.columns else None,
+        # symbol_sequence=["x", "cross", "circle"],
         hover_data=[
             "name",
             "%CCTT",
@@ -225,7 +224,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                     ax=20,
                     ay=20,
                 )
-    fig.update_traces(marker=dict(size=9, opacity=0.5))
+    fig.update_traces(marker=dict(size=9, opacity=0.7))
     fig.update_layout(
         plot_bgcolor="white",
         font=dict(size=20),
@@ -236,9 +235,11 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             y=0.99,
             xanchor="left",
             x=0.05,
+            font=dict(size=16),
         ),
         width=1000,
         height=600,
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     fig.update_xaxes(
         showline=True,
@@ -302,7 +303,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                 y=[None],
                 mode="markers",
                 marker=dict(symbol="circle", size=10, color="black"),
-                name="in-house control",
+                name="in-house non-aFTLD-U",
                 legendgroup="group",
                 legendgrouptitle=dict(text="Group"),
             )
@@ -340,7 +341,6 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                 legendgrouptitle=dict(text="Haplotype")
             )
         )
-
 
     if df["length"].max() > upper_limit:
         sys.stderr.write(
