@@ -6,6 +6,13 @@ import sys
 from itertools import cycle
 
 
+class Genotype(object):
+    def __init__(self, individual, num_reads, seq):
+        self.individual = individual
+        self.num_reads = num_reads
+        self.seq = seq
+
+
 def main():
     args = get_args()
     df = get_data(args)
@@ -14,7 +21,18 @@ def main():
         out.write(scatter_plot(df, motif="CCCTCT count").to_html())
         out.write(scatter_plot(df, motif="CT count").to_html())
         out.write(scatter_motifs(df).to_html())
+    genotype(df)
 
+def genotype(df, min_reads=200):
+    genotypes = []
+    for sample in df["sample"].unique():
+        df_sample = df[df["sample"] == sample]
+        if (num_reads := len(df_sample)) < min_reads:
+            genotypes.append(Genotype(sample, num_reads, None))
+        else:
+            # take min_reads number of reads, sorted by length
+            seqs = df_sample.sort_values(by="length")["seq"].to_list()[:num_reads]
+            # use those min_reads number of longest reads to create a consensus sequence, excluding outliers
 
 def get_data(args):
     records = []
@@ -30,16 +48,16 @@ def get_data(args):
                 records.append(parse_read(r, args.full, name))
 
     df = pd.DataFrame(
-        records, columns=["sample", "strand", "length", "CCCTCT count", "CT count"]
+        records, columns=["sample", "strand", "length", "seq", "CCCTCT count", "CT count"]
     )
-    df = df[(df["length"] > args.minlength) & (df["length"] < args.maxlength)]
+    df = df[df["length"].between(args.minlength, args.maxlength)]
     return df
 
 
 def parse_read(read, full, name):
     seq = read.query_sequence if full else non_ref_bases(read)
     fragment_length = read.query_length if full else len(seq)
-    return name, get_strand(read), fragment_length, get_ccctct(seq), count_ct_by_subtracting_motifs(seq)
+    return name, get_strand(read), fragment_length, seq, get_ccctct(seq), count_ct_by_subtracting_motifs(seq)
 
 def non_ref_bases(read, minlength=50):
     """
