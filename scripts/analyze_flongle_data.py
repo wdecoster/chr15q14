@@ -4,41 +4,77 @@ import pandas as pd
 from argparse import ArgumentParser
 import sys
 from itertools import cycle
+import pypoars
+import tqdm
+import concurrent.futures
+import os
+from fuzzysearch import find_near_matches
 
 
 class Genotype(object):
-    def __init__(self, individual, num_reads, seq):
+    def __init__(self, individual, num_reads, reads_initially, seq):
         self.individual = individual
         self.num_reads = num_reads
-        self.seq = seq
+        self.reads_initially = reads_initially
+        self.seq = seq if seq else "-"
+        self.ct_dimer_count = self.count_ct_dimer() if seq else 0
+        self.hexamer_count = seq.count("CCCTCT") if seq else 0
+        self.length = len(seq) if seq else 0
+
+    def __repr__(self):
+        return f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}"
+
+    def count_ct_dimer(self):
+        _seq = self.seq
+        for motif in ["CCCTCT", "CCCCT", "CCTTT", "CCTT", "CCCT", "CTTT"]:
+            _seq = _seq.replace(motif, "-")
+        return _seq.count("CT")
 
 
 def main():
     args = get_args()
     df = get_data(args)
-    with open(args.output, "w") as out:
-        out.write(ridges_plot(df).to_html())
-        out.write(scatter_plot(df, motif="CCCTCT count").to_html())
-        out.write(scatter_plot(df, motif="CT count").to_html())
-        out.write(scatter_motifs(df).to_html())
-    genotype(df)
+    if not args.noplot:
+        with open(args.output, "w") as out:
+            out.write(ridges_plot(df).to_html())
+            out.write(scatter_plot(df, motif="CCCTCT count").to_html())
+            out.write(scatter_plot(df, motif="CT count").to_html())
+            out.write(scatter_motifs(df).to_html())
+    genotype_samples(df, args)
 
-def genotype(df, min_reads=200):
-    genotypes = []
+def genotype_samples(df, args):
+    num_samples = len(df["sample"].unique())
+    with concurrent.futures.ProcessPoolExecutor(max_workers=args.threads) as executor:
+        genotypes = list(tqdm.tqdm(executor.map(genotype_sample, next_sample(df), [args] * num_samples), total=num_samples))
+    print("Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence")
+    for genotype in sorted(genotypes, key=lambda x: x.ct_dimer_count):
+        print(genotype)
+
+def next_sample(df):
     for sample in df["sample"].unique():
-        df_sample = df[df["sample"] == sample]
-        if (num_reads := len(df_sample)) < min_reads:
-            genotypes.append(Genotype(sample, num_reads, None))
-        else:
-            # take min_reads number of reads, sorted by length
-            seqs = df_sample.sort_values(by="length")["seq"].to_list()[:num_reads]
-            # use those min_reads number of longest reads to create a consensus sequence, excluding outliers
+        yield df[df["sample"] == sample] 
+
+
+def genotype_sample(df_sample, args, min_reads=100):
+    reads_before = len(df_sample)
+    df_sample = df_sample[df_sample["length"].between(args.minlength, args.maxlength)]
+
+    name = df_sample["sample"].iloc[0]
+    if (num_reads := len(df_sample)) < min_reads:
+        return Genotype(name, num_reads, reads_before, None)
+    else:
+        # take min_reads number of reads, sorted by length
+        seqs = df_sample.sort_values(by="length")["seq"].to_list()[:num_reads]
+        # use those min_reads number of longest reads to create a consensus sequence
+        consensus = pypoars.poa_consensus(seqs)
+        return Genotype(name, num_reads, reads_before, consensus)
+
 
 def get_data(args):
     records = []
     for cram in args.crams:
         name = (
-            cram.replace("masked_rm_map-sminimap2-", "")
+            os.path.basename(cram).replace("masked_rm_map-sminimap2-", "")
             .replace("_hg38s.cram", "")
             .split(".")[0]
             .replace("_v7", "")
@@ -50,12 +86,13 @@ def get_data(args):
     df = pd.DataFrame(
         records, columns=["sample", "strand", "length", "seq", "CCCTCT count", "CT count"]
     )
-    df = df[df["length"].between(args.minlength, args.maxlength)]
     return df
 
 
 def parse_read(read, full, name):
     seq = read.query_sequence if full else non_ref_bases(read)
+    if not seq:
+        return name, get_strand(read), 0, None, 0, 0
     fragment_length = read.query_length if full else len(seq)
     return name, get_strand(read), fragment_length, seq, get_ccctct(seq), count_ct_by_subtracting_motifs(seq)
 
@@ -85,6 +122,22 @@ def non_ref_bases(read, minlength=50):
             if length >= minlength:
                 non_ref += read.query_sequence[read_position : read_position + length]
             read_position += length
+    # attempt to trim off the reference sequences that may be caugth in the softclipped region
+    # however, it is not likely that perfect matches are found for every read
+    # therefore, using a fuzzy search allowing for a few mismatches (~5%) is used
+    right_seq = "GAGACGGAGTTTCTCTCTTGTTGCCCAGGCTGGAGTGCATGTTGCTGTGCACTTTGAGGGCAGGAACTG"
+    matches = find_near_matches(right_seq, non_ref, max_l_dist=4)
+    if len(matches) > 1:
+        return None
+    if len(matches) == 1:
+        non_ref = non_ref[: matches[0].start]
+
+    left_seq = "TTATCAGGGCCTCTCTTCGCAGGCAGTGGGGCCTCATCCACAACCCTGGAAAAGAACTGGAAAGCGTTGCTCAGCCAGGTACGGAGGGCAGGGCCATGTGGGACTCCCGTCTCCAGGCCCCCTCTCCCCAGCTCCCG"
+    matches = find_near_matches(left_seq, non_ref, max_l_dist=7)
+    if len(matches) > 1:
+        return None
+    if len(matches) == 1:
+        non_ref = non_ref[matches[0].end:]
     return non_ref
 
 def get_strand(read):
@@ -230,11 +283,13 @@ def scatter_motifs(df):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--crams", nargs="+", help="Input CRAM files")
-    parser.add_argument("--minlength", type=int, default=50, help="Minimum read length")
-    parser.add_argument("--maxlength", type=int, default=1200, help="Maximum read length")
+    parser.add_argument("--crams", nargs="+", help="Input CRAM file(s)")
+    parser.add_argument("--minlength", type=int, default=50, help="Minimum fragment length")
+    parser.add_argument("--maxlength", type=int, default=1200, help="Maximum fragment length")
     parser.add_argument("--full", action="store_true", help="Use entire read sequence, not just non-reference bases")
     parser.add_argument("--output", default="read_lengths.html", help="Output file")
+    parser.add_argument("--threads", type=int, default=4, help="Number of threads to use")
+    parser.add_argument("--noplot", action="store_true", help="Don't make plots")
     return parser.parse_args()
 
 
