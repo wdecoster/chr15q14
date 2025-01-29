@@ -174,7 +174,7 @@ rule all:
         table_carriers = expand(os.path.join(outdir, "tables/haplotype_carriers_{target}.xlsx"), target=targets),
         somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
         sex_check = os.path.join(outdir, "sex_check.html"),
-
+        precision_recall = expand(os.path.join(outdir, "plots/{target}/precision_recall.txt"), target=targets),
 
 
 rule strdust:
@@ -687,6 +687,30 @@ rule astronaut_multiple_samples:
         {input} -m {params.minsize} -o {output} --longest_only --publication --title "Repeat composition sequence in individuals with multiple samples" --sampleinfo {params.sample_info} 2> {log}
         """
 
+rule precision_recall:
+    input:
+        overview = os.path.join(outdir, "analysis_overview_{target}.tsv")
+    output:
+        os.path.join(outdir, "plots/{target}/precision_recall.txt"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/precision_recall.log"),
+    params:
+        script=os.path.join(
+            os.path.dirname(workflow.basedir),
+            "scripts/precision_recall.py",
+        ),
+        cutoff_CT_dimer = 190,
+        cutoff_double_length = 450,
+        cutoff_double_ct = 0.8,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/precision_recall.yml")
+    shell:
+        """
+        python {params.script} \
+        --data {input.overview} \
+        --cutoff_CT_dimer {params.cutoff_CT_dimer} \
+        --cutoff_double {params.cutoff_double_length} {params.cutoff_double_ct} > {output} 2> {log}
+        """
 
 
 rule make_combined_inquistr_file:
