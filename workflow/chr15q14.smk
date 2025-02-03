@@ -655,6 +655,7 @@ rule astronaut_relatives:
         --hide_allele_label \
         --size {params.dotsize} \
         {input} \
+        --legend_corner topright \
         -m {params.minsize} \
         -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
         """
