@@ -10,8 +10,8 @@ def main():
     df = df[(df["group"].isin(["aFTLD-U", "in-house non-aFTLD-U", "1000G"]))]
 
     haplotype_alias = {
-        "major": "Haplotype A",
-        "minor": "Haplotype B",
+        "major": "HapA",
+        "minor": "HapB",
         "none": "None"
     }
     df["Haplotype"] = df["haplotype"].map(haplotype_alias)
@@ -36,7 +36,7 @@ def main():
     fig.update_layout(
         plot_bgcolor="white",
         font=dict(size=20),
-        height=400,
+        height=300,
         width=1000,
         margin=dict(l=0, r=0, t=50, b=0),
         legend=dict(
