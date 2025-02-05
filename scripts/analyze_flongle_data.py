@@ -34,25 +34,37 @@ class Genotype(object):
 def main():
     args = get_args()
     df = get_data(args)
+    genotypes = genotype_samples(df, args)
+    for genotype in sorted(genotypes, key=lambda x: x.ct_dimer_count):
+        print(genotype)
     if not args.noplot:
+        df = df[df["length"].between(args.minlength, args.maxlength)]
         with open(args.output, "w") as out:
-            out.write(ridges_plot(df).to_html())
+            out.write(plot_genotypes(genotypes).to_html())
+            # out.write(ridges_plot(df).to_html())
             out.write(scatter_plot(df, motif="CCCTCT count").to_html())
             out.write(scatter_plot(df, motif="CT count").to_html())
             out.write(scatter_motifs(df).to_html())
-    genotype_samples(df, args)
+
 
 def genotype_samples(df, args):
     num_samples = len(df["sample"].unique())
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.threads) as executor:
-        genotypes = list(tqdm.tqdm(executor.map(genotype_sample, next_sample(df), [args] * num_samples), total=num_samples))
-    print("Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence")
-    for genotype in sorted(genotypes, key=lambda x: x.ct_dimer_count):
-        print(genotype)
+        genotypes = list(
+            tqdm.tqdm(
+                executor.map(genotype_sample, next_sample(df), [args] * num_samples),
+                total=num_samples,
+            )
+        )
+    print(
+        "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence"
+    )
+    return genotypes
+
 
 def next_sample(df):
     for sample in df["sample"].unique():
-        yield df[df["sample"] == sample] 
+        yield df[df["sample"] == sample]
 
 
 def genotype_sample(df_sample, args, min_reads=100):
@@ -74,7 +86,8 @@ def get_data(args):
     records = []
     for cram in args.crams:
         name = (
-            os.path.basename(cram).replace("masked_rm_map-sminimap2-", "")
+            os.path.basename(cram)
+            .replace("masked_rm_map-sminimap2-", "")
             .replace("_hg38s.cram", "")
             .split(".")[0]
             .replace("_v7", "")
@@ -84,7 +97,8 @@ def get_data(args):
                 records.append(parse_read(r, args.full, name))
 
     df = pd.DataFrame(
-        records, columns=["sample", "strand", "length", "seq", "CCCTCT count", "CT count"]
+        records,
+        columns=["sample", "strand", "length", "seq", "CCCTCT count", "CT count"],
     )
     return df
 
@@ -94,7 +108,15 @@ def parse_read(read, full, name):
     if not seq:
         return name, get_strand(read), 0, None, 0, 0
     fragment_length = read.query_length if full else len(seq)
-    return name, get_strand(read), fragment_length, seq, get_ccctct(seq), count_ct_by_subtracting_motifs(seq)
+    return (
+        name,
+        get_strand(read),
+        fragment_length,
+        seq,
+        get_ccctct(seq),
+        count_ct_by_subtracting_motifs(seq),
+    )
+
 
 def non_ref_bases(read, minlength=50):
     """
@@ -137,14 +159,17 @@ def non_ref_bases(read, minlength=50):
     if len(matches) > 1:
         return None
     if len(matches) == 1:
-        non_ref = non_ref[matches[0].end:]
+        non_ref = non_ref[matches[0].end :]
     return non_ref
+
 
 def get_strand(read):
     return "-" if read.is_reverse else "+"
 
+
 def get_ccctct(seq):
     return seq.count("CCCTCT") if seq else 0
+
 
 def count_ct_by_subtracting_motifs(seq):
     if not seq:
@@ -186,7 +211,9 @@ def scatter_plot(df, motif):
     fig_scatter = go.Figure()
     colors = ["blue", "red", "green", "purple", "orange"]
     if len(df["sample"].unique()) > len(colors):
-        sys.stderr.write("Warning: more samples than colors, some samples will have the same color.\n")
+        sys.stderr.write(
+            "Warning: more samples than colors, some samples will have the same color.\n"
+        )
         colors = cycle(colors)
     for sample, color in zip(df["sample"].unique(), colors):
         df_sample = df[df["sample"] == sample]
@@ -281,14 +308,64 @@ def scatter_motifs(df):
     return fig_scatter
 
 
+def plot_genotypes(genotypes):
+    """
+    Make a scatter plot showing for each sample the CT dimer count vs the CCCTCT hexamer count
+    """
+    fig_scatter = go.Figure(
+        go.Scatter(
+            x=[genotype.ct_dimer_count for genotype in genotypes],
+            y=[genotype.hexamer_count for genotype in genotypes],
+            mode="markers",
+            text=[genotype.individual for genotype in genotypes],
+            marker=dict(size=4, color="black"),
+            hovertext=[genotype.individual for genotype in genotypes],
+        )
+    )
+    fig_scatter.update_layout(
+        plot_bgcolor="white",
+        margin=dict(l=0, r=0, t=50, b=0),
+        title="Genotypes from spanning PCR",
+        font=dict(size=16),
+        height=400,
+        width=800,
+    )
+    fig_scatter.update_xaxes(
+        showline=True,
+        linewidth=1,
+        linecolor="black",
+        mirror=True,
+        title="CT dimers",
+    )
+    fig_scatter.update_yaxes(
+        showline=True,
+        linewidth=1,
+        linecolor="black",
+        mirror=True,
+        title="CCCTCT hexamers",
+    )
+    fig_scatter.add_vline(x=190, line_width=2, line_dash="dash", line_color="black")
+    return fig_scatter
+
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--crams", nargs="+", help="Input CRAM file(s)")
-    parser.add_argument("--minlength", type=int, default=50, help="Minimum fragment length")
-    parser.add_argument("--maxlength", type=int, default=1200, help="Maximum fragment length")
-    parser.add_argument("--full", action="store_true", help="Use entire read sequence, not just non-reference bases")
+    parser.add_argument(
+        "--minlength", type=int, default=50, help="Minimum fragment length"
+    )
+    parser.add_argument(
+        "--maxlength", type=int, default=1200, help="Maximum fragment length"
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Use entire read sequence, not just non-reference bases",
+    )
     parser.add_argument("--output", default="read_lengths.html", help="Output file")
-    parser.add_argument("--threads", type=int, default=4, help="Number of threads to use")
+    parser.add_argument(
+        "--threads", type=int, default=4, help="Number of threads to use"
+    )
     parser.add_argument("--noplot", action="store_true", help="Don't make plots")
     return parser.parse_args()
 
