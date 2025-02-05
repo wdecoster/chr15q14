@@ -238,7 +238,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             font=dict(size=16),
         ),
         width=1000,
-        height=600,
+        height=500,
         margin=dict(l=0, r=0, t=50, b=0),
     )
     fig.update_xaxes(
