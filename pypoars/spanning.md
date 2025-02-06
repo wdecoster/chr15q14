@@ -1,4 +1,4 @@
-## Analysis of spanning PCR data generated on flongle
+# Analysis of spanning PCR data generated on flongle
 
 The `scripts/analyze_flongle_data.py` script can be used to analze results from the spanning PCR assay to genotype shorter alleles of the expansion.
 It uses Rust code (`pypoars`) to generate a consensus sequence of the PCR products of expansions. See below on installation and usage.
