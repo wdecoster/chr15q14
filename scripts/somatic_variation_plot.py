@@ -37,14 +37,14 @@ def main():
         how="left",
     )
     df = df[df["length"] >= args.minlen]
-    haplotype_alias = {"major": "A", "minor": "B", "none": "none"}
+    haplotype_alias = {"major": "HapA", "minor": "HapB", "none": "none"}
     df["haplotype"] = df["haplotype"].apply(lambda x: haplotype_alias[x])
     fig = make_subplots(
         rows=1,
         cols=2,
         subplot_titles=(
-            "A  Repeat length vs. standard deviation",
-            "B  Standard deviation per haplotype",
+            "Repeat length vs. standard deviation",
+            "Standard deviation per haplotype",
         ),
     )
     scatter = px.scatter(
@@ -66,23 +66,45 @@ def main():
         color="group",
         title="Standard deviation of repeat lengths per group",
         labels={"stdev": "Standard deviation of repeat length", "group": "Group"},
+        hover_data=["name"],
     )
     figures = [scatter, strip]
     for i, figure in enumerate(figures, start=1):
         for trace in figure.data:
             fig.add_trace(trace, row=1, col=i)
-    
+
     names = set()
     fig.for_each_trace(
-        lambda trace:
+        lambda trace: (
             trace.update(showlegend=False)
-            if (trace.name in names) else names.add(trace.name))
-    
-    fig.update_traces(marker=dict(size=4))
+            if (trace.name in names)
+            else names.add(trace.name)
+        )
+    )
+
+    fig.update_traces(
+        marker=dict(
+            size=10,
+            opacity=0.7,
+        )
+    )
     fig.update_layout(
         plot_bgcolor="white",
-        font=dict(size=18),
+        font=dict(size=28),
     )
+    # put the legend on the bottom, centered between the two subplots
+    fig.update_layout(
+        legend=dict(
+            yanchor="bottom",
+            y=-0.15,
+            xanchor="center",
+            x=0.5,
+            bordercolor="black",
+            borderwidth=0.5,
+            orientation="h",
+        )
+    )
+
     fig.update_xaxes(
         showline=True,
         linewidth=2,
@@ -101,7 +123,7 @@ def main():
     fig.update_xaxes(title_text="Haplotype", row=1, col=2)
     fig.update_yaxes(title_text="Standard deviation of length", row=1, col=2)
     # make the subplot titles larger, which turn out to be annotations
-    fig.update_annotations(font_size=20)
+    fig.update_annotations(font_size=32)
     fig.write_html(args.output)
 
 
