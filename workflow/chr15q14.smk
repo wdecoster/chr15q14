@@ -210,7 +210,6 @@ rule somatic_astronaut:
         os.path.join(outdir, "logs/workflows/{target}/somatic_astronaut_{id}.log"),
     params:
         script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample = lambda wildcards: wildcards.id,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -218,7 +217,6 @@ rule somatic_astronaut:
         python {params.script} \
         --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
         --somatic -m 100 --publication \
-        --hide-labels \
         {input} -o {output} 2> {log}
         """
 
