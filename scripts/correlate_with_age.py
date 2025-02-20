@@ -5,15 +5,15 @@ import statsmodels.api as sm
 
 
 class OLS:
-    def __init__(self, df, variable):
-        X = df[variable]
-        y = df["AGEATDEATH"]
+    def __init__(self, df, variable1, variable2):
+        X = df[variable1]
+        y = df[variable2]
         X = sm.add_constant(X)
         model = sm.OLS(y, X).fit()
         model.summary()
 
         # get the pvalue
-        self.pval = model.pvalues[variable]
+        self.pval = model.pvalues[variable1]
         self.rsquared = model.rsquared
 
     def __str__(self):
@@ -24,7 +24,7 @@ def main():
     args = get_args()
     df = pd.read_csv(args.input, sep="\t")
     sampleinfo = pd.read_excel(
-        args.sampleinfo, usecols=["Gentli_ID", "AGEATDEATH"]
+        args.sampleinfo, usecols=["Gentli_ID", "AGEATDEATH", "AGEATONSET"]
     ).rename(columns={"Gentli_ID": "name"})
     df = (
         df.merge(sampleinfo, on="name")
@@ -48,17 +48,21 @@ def main():
             "in-house non-aFTLD-U": (0.80, 0.70),
         }
 
+    make_plot(df, args, annotation_location, variable="AGEATDEATH")
+    make_plot(df, args, annotation_location, variable="AGEATONSET")
 
+def make_plot(df, args, annotation_location, variable):
     fig = px.scatter(
         df,
         x="CT_dimer_count",
-        y="AGEATDEATH",
+        y=variable,
         color="group",
         trendline="ols",
         hover_data=["name"],
         labels={
             "length": "Repeat length",
             "AGEATDEATH": "Age at death",
+            "AGEATONSET": "Age at onset",
             "repeat_length_CT": "Repeat length * %CT",
             "CT_dimer_count": "CT dimer count",
         },
@@ -109,6 +113,7 @@ def main():
         text=OLS(
             df[df["group"].isin(["aFTLD-U"])],
             "CT_dimer_count",
+            variable,
         ).__str__(),
         align="left",
         showarrow=False,

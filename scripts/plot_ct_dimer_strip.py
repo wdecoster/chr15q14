@@ -40,14 +40,15 @@ def main():
         width=1000,
         margin=dict(l=0, r=0, t=50, b=0),
         legend=dict(
-            title="Group",
+            title="",
             yanchor="bottom",
             y=0,
             xanchor="right",
             x=1,
             bordercolor="black",
-            borderwidth=1,
-            font=dict(size=16),
+            borderwidth=0.5,
+            font=dict(size=14),
+            orientation="h",
         ),
     )
     fig.update_xaxes(
