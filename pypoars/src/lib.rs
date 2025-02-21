@@ -2,7 +2,6 @@ use pyo3::prelude::*;
 use bio::alignment::{pairwise::Scoring, poa::Aligner};
 
 
-/// Formats the sum of two numbers as string.
 #[pyfunction]
 fn poa_consensus(seqs: Vec<String>) -> PyResult<String> {
     let seqs_bytes = seqs.iter().map(|seq| seq.bytes().collect::<Vec<u8>>()).collect::<Vec<Vec<u8>>>();
