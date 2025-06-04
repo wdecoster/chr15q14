@@ -95,11 +95,16 @@ def main():
         df = df.merge(sampleinfo, on="name", how="left").sort_values("group")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
-            title = (
-                f"Repeat length {locus}"
-                if df["variant"].nunique() > 1
-                else "Repeat length"
-            )
+            # Use custom title if provided, otherwise use the default logic
+            if args.title:
+                title = args.title
+            else:
+                title = (
+                    f"Repeat length {locus}"
+                    if df["variant"].nunique() > 1
+                    else "Repeat length"
+                )
+                
             fig = make_violin_plot(df.loc[df["variant"] == locus], title, args)
 
             fig.write_html(
@@ -145,7 +150,7 @@ def make_violin_plot(df, title, args):
     )
     # show zerolines
     fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
-    upper_limit = 2500
+    upper_limit = args.y_limit
     fig.update_yaxes(
         showline=True,
         linewidth=2,
@@ -205,6 +210,12 @@ def get_args():
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"
+    )
+    parser.add_argument(
+        "--y-limit", type=int, default=2500, help="Upper limit for y-axis (default: 2500)"
+    )
+    parser.add_argument(
+        "--title", help="Custom title for the plot (default: 'Repeat length' or 'Repeat length CHROM:POS')"
     )
     return parser.parse_args()
 
