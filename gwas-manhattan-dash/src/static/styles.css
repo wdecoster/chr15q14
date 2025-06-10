@@ -1,0 +1,67 @@
+/* styles.css */
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    color: #343a40;
+}
+
+.container {
+    max-width: 1200px;
+    margin: auto;
+}
+
+.filters {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #ffffff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.filter-title {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    color: #495057;
+}
+
+.slider {
+    margin: 10px 0;
+}
+
+.checkbox {
+    margin: 5px 0;
+}
+
+.confirm-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.confirm-button:hover {
+    background-color: #0056b3;
+}
+
+.plot-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #ffffff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.plot-title {
+    text-align: center;
+    font-size: 1.5em;
+    color: #343a40;
+}
