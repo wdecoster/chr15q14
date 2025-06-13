@@ -63,6 +63,7 @@ def get_representative_cohort():
             "individual",
         ].tolist()
     except ImportError:
+        print("\n\nWARNING: Privacy module not found, returning all normal individuals for representative cohort.\n\n")
         return crams.loc[crams["collection"] == "normal", "individual"].tolist()
 
 representative_cohort = get_representative_cohort()
@@ -109,13 +110,14 @@ def fix_names_duplicates(wildcards):
 
 coords = {
     "golga8a_unphased": ["chr15:34419425-34419451", "--unphased"],
+    "golga8a_unphased_larger": ["chr15:34419375-34419501", "--unphased"],    
     "golga8a_phased": ["chr15:34419425-34419451", ""],
     "inbetween": ["chr15:34480576-34480608", "--unphased"],
     "golga8b": ["chr15:34565656-34565682", "--unphased"],
     "mga": ["chr15:41656320-41656381", ""],
     "linc02177": ["chr16:9393980-9394893", ""],
     "tata_golga8a": ["chr15:34454183-34454242", "--unphased"],
-    "golga8a_utr": ["chr15:34437426-34437720", "--unphased"],
+    "golga8a_utr": ["chr15:34437426-34437720", ""],
 }
 
 def get_coords(wildcards):
@@ -167,7 +169,7 @@ rule all:
         ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
         ct_dimer_strip=expand(os.path.join(outdir, "plots/{target}/ct_dimer_strip.html"), target=targets),
         combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
-        corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
+        #corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
         copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
         overview = expand(os.path.join(outdir, "analysis_overview_{target}.tsv"), target=targets),
@@ -175,6 +177,12 @@ rule all:
         somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
         sex_check = os.path.join(outdir, "sex_check.html"),
         precision_recall = expand(os.path.join(outdir, "plots/{target}/precision_recall.txt"), target=targets),
+        sniffles = os.path.join(outdir, "sniffles/sniffles-all-500kb.vcf.gz"),
+        deepvariant = os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
+        shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
+        shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
+
+
 
 
 rule strdust:
@@ -845,3 +853,265 @@ rule sex_check:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         "python {params.script} -c {input} -o {output} --sampleinfo {params.cohort} 2> {log}"
+
+
+rule write_bed:
+    """
+    Creates a 1.5Mb target region around the tagging variant to genotype SVs with sniffles
+    """
+    output:
+        os.path.join(outdir, "sniffles_target.bed"),
+    log:
+        os.path.join(outdir, "logs/workflows/write_bed.log"),
+    params:
+        chrom = "chr15",
+        start="33362469",
+        end="35862469",
+    shell:
+        """
+        echo -e "{params.chrom}\t{params.start}\t{params.end}" > {output} 2> {log}
+        """
+
+
+rule sniffles:
+    input:
+        cram=get_cram,
+        bed=os.path.join(outdir, "sniffles_target.bed"),
+    output:
+        vcf = os.path.join(outdir, "sniffles/{id}.vcf.gz"),
+        snf = os.path.join(outdir, "sniffles/{id}.snf"),
+    log:
+        os.path.join(outdir, "logs/workflows/{id}-sniffles.log"),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/sniffles262.yml")
+    params:
+        name = lambda wildcards: wildcards.id,
+        ref=ref,
+    threads:
+        4
+    shell:
+        """sniffles --input {input.cram} \
+        --snf {output.snf} \
+        --vcf {output.vcf} \
+        --sample-id {params.name} \
+        --reference {params.ref} \
+        --threads {threads} \
+        --regions {input.bed} \
+        --phase &> {log}"""
+
+
+rule gather_sniffles:
+    input:
+        expand(os.path.join(outdir, "sniffles/{id}.snf"), id=representative_cohort)
+    output:
+        unsorted = temp(os.path.join(outdir, "sniffles/sniffles-all.vcf")),
+    log:
+        os.path.join(outdir, "logs/workflows/gather_sniffles.log"),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/sniffles262.yml")
+    threads:
+        24
+    shell:
+        "sniffles --input {input} --vcf {output} --threads {threads} &> {log}"
+
+rule bcftools_sort:
+    input:
+        os.path.join(outdir, "sniffles/sniffles-all.vcf"),
+    output:
+        os.path.join(outdir, "sniffles/sniffles-all.vcf.gz"),
+    log:
+        os.path.join(outdir, "logs/workflows/bcftools_sort.log"),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/bcftools.yml")
+    shell:
+        "bcftools sort {input} -Oz -o {output} &> {log} && bcftools index {output}"
+
+rule subset_svs:
+    input:
+        os.path.join(outdir, "sniffles/sniffles-all.vcf.gz"),
+    output:
+        os.path.join(outdir, "sniffles/sniffles-all-500kb.vcf.gz"),
+    log:
+        os.path.join(outdir, "logs/workflows/subset_svs.log"),
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/bcftools.yml")
+    shell:
+        "bcftools view -o {output} {input} chr15:34362469-34862469 &> {log} && bcftools index {output}"
+
+
+rule find_shared_svs:
+    input:
+        os.path.join(outdir, "sniffles/sniffles-all-500kb.vcf.gz"),
+    output:
+        os.path.join(outdir, "sniffles/shared_svs.tsv"),
+    log:
+        os.path.join(outdir, "logs/workflows/find_shared_svs.log"),
+    params:
+        script = os.path.join(
+            os.path.dirname(workflow.basedir), "scripts/find_shared_variants.py"
+        ),
+        sampleinfo = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        -i {input} \
+        --type sv \
+        --sampleinfo {params.sampleinfo} > {output} 2> {log}
+        """
+
+rule extract_bam:
+    input:
+        get_cram,
+    output:
+        temp(os.path.join(outdir, "alignment_temp/{id}.bam")),
+    log:
+        os.path.join(outdir, "logs/workflows/extract_bam_{id}.log"),
+    params:
+        ref = ref,
+        target = "chr15:34362469-34862469"
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/samtools.yml")
+    shell:
+        """
+        samtools view -o {output} {input} {params.target} &> {log} && samtools index {output} &>> {log}
+        """
+
+rule copy_ref:
+    output:
+        os.path.join(outdir, "ref/GRCh38.fa"),
+    log:
+        os.path.join(outdir, "logs/workflows/copy_ref.log"),
+    params:
+        ref = ref,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/samtools.yml")
+    shell:
+        """
+        cp {params.ref} {output} &> {log} && samtools faidx {output} &>> {log}
+        """
+
+rule deepvariant:
+    """use deepvariant with docker to get a gvcf"""
+    input:
+        bam = os.path.join(outdir, "alignment_temp/{id}.bam"),
+        ref = os.path.join(outdir, "ref/GRCh38.fa"),
+    output:
+        vcf = os.path.join(outdir, "deepvariant", "{id}.vcf.gz"),
+        gvcf = os.path.join(outdir, "deepvariant", "{id}.gvcf.gz")
+    log:
+        os.path.join(outdir, "logs/deepvariant_{id}.log")
+    params:
+        regions = "chr15:34362469-34862469", # currently hardcoded
+        wd = outdir,
+        sample = lambda wildcards: wildcards.id
+    threads:
+        8
+    shell:
+        """
+        cram_path=$(echo {input} | sed 's|{params.wd}||')
+        ref_path=$(echo {input.ref} | sed 's|{params.wd}||')
+        output_path=$(echo {output.vcf} | sed 's|{params.wd}||')
+        gvcf_path=$(echo {output.gvcf} | sed 's|{params.wd}||')
+        docker run --user $(id -u):$(id -g) -v {params.wd}:/data google/deepvariant:1.8.0 \
+        /opt/deepvariant/bin/run_deepvariant \
+        --model_type=ONT_R104 \
+        --ref=/data/${{ref_path}} \
+        --reads=/data/${{cram_path}} \
+        --output_vcf=/data/${{output_path}} \
+        --output_gvcf=/data/${{gvcf_path}} \
+        --regions={params.regions} \
+        --sample_name={params.sample} \
+        --call_variants_extra_args='allow_empty_examples=true' \
+        --num_shards={threads} &> {log}
+        """
+
+rule index_gvcf:
+    input:
+        os.path.join(outdir, "deepvariant", "{id}.gvcf.gz")
+    output:
+        os.path.join(outdir, "deepvariant", "{id}.gvcf.gz.tbi")
+    log:
+        os.path.join(outdir, "logs/index_gvcf_{id}.log")
+    shell:
+        "tabix {input} &> {log}"
+
+
+rule merge_variants:
+    input:
+        gvcfs = expand(os.path.join(outdir, "deepvariant", "{id}.gvcf.gz"), id=representative_cohort),
+        gvcfs_idx = expand(os.path.join(outdir, "deepvariant", "{id}.gvcf.gz.tbi"), id=representative_cohort),
+    output:
+        vcf = os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
+        target = temp(os.path.join(outdir, "temp", "chr15_34426466_34426857.bed"))
+    params:
+        interval  = "chr15:34362469-34862469", # currently hardcoded
+        binary = "/home/wdecoster/bin/glnexus_cli"
+    log:
+        os.path.join(outdir, "logs/merge_variants_deepvariant.log")
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/bcftools.yml")
+    shell:
+        """
+        # if GLnexus.DB exists, remove it
+        if [ -d GLnexus.DB ]; then rm -r GLnexus.DB; fi &&
+        echo {params.interval} | sed 's/:/\t/' | sed 's/-/\t/' > {output.target} &&
+        {params.binary} \
+          --config DeepVariantWGS \
+          --bed {output.target} \
+          {input.gvcfs} 2> {log} | 
+          bcftools view - -o {output.vcf} -O z &>> {log} &&
+          bcftools index {output.vcf} &>> {log}
+          """
+
+rule annotate_variants_with_vep:
+    """
+    Annotate the variants with VEP, using singularity
+    The code below is a bit of a silly hack, as it first copies the file to the current directory, and then runs vep on it. 
+    This is because singularity could not find the input file and did not allow writing to the output directory.
+    """
+    input:
+        os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
+    output:
+        uncompr = temp("deepvariant_all_annotated.vcf"),
+        compressed = os.path.join(outdir, "deepvariant", "deepvariant_all_annotated.vcf.gz"),
+    log:
+        os.path.join(outdir, "logs/workflows/annotate_variants.log"),
+    shell:
+        """
+        cp {input} .
+        input=$(basename {input})
+        output=$(basename {output.uncompr})
+        singularity exec /home/wdecoster/vep_data/vep.sif \
+        vep --dir /home/wdecoster/vep_data \
+        --cache --offline --format vcf --vcf --force_overwrite \
+        --input_file $input \
+        --output_file $output 2> {log} && bgzip -c $output > {output.compressed} 2>> {log} && rm $input 2>> {log}
+        """
+
+
+
+rule find_shared_snvs:
+    input:
+        os.path.join(outdir, "deepvariant", "deepvariant_all_annotated.vcf.gz")
+    output:
+        os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
+    log:
+        os.path.join(outdir, "logs/workflows/find_shared_svs.log"),
+    params:
+        script = os.path.join(
+            os.path.dirname(workflow.basedir), "scripts/find_shared_variants.py"
+        ),
+        sampleinfo = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+            gwas = "/home/wdecoster/chr15q14/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        -i {input} \
+        --sampleinfo {params.sampleinfo} \
+        --type snv \
+        --gwas {params.gwas} > {output} 2> {log}
+        """
