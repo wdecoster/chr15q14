@@ -122,7 +122,8 @@ def make_violin_plot(df, title, args):
         df,
         x="group",
         y="length",
-        color_discrete_sequence=["black"],
+        color="group",
+        color_discrete_map={"in-house<br>non-aFTLD-U": "black", "aFTLD-U": "red"},
         hover_data=[
             "name",
             "%CCTT",
@@ -138,24 +139,23 @@ def make_violin_plot(df, title, args):
     if args.line:
         fig.add_hline(y=args.line, line_dash="dash", line_color="grey")
     # make the dots smaller
-    # fig.update_traces(spanmode="hard", marker=dict(size=4, color="black"))
-    fig.update_traces(marker=dict(size=4, color="black"), jitter=1.0)
+    fig.update_traces(marker=dict(size=4), jitter=1.0)
     fig.update_layout(plot_bgcolor="white")
     fig.update_yaxes(title_text="Consensus repeat length")
-    fig.update_xaxes(title_text="")
+    fig.update_xaxes(title_text="Phenotype")
     fig.update_layout(
         font=dict(size=18),
         legend=dict(title="Sample", itemsizing="constant"),
         margin=dict(l=0, r=0, t=50, b=0),
+        showlegend=False
     )
     # show zerolines
-    fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
+    fig.update_xaxes(showline=True, linewidth=2, linecolor="black")
     upper_limit = args.y_limit
     fig.update_yaxes(
         showline=True,
         linewidth=2,
         linecolor="black",
-        mirror=True,
         range=[0, upper_limit],
     )
     # reduce the horizontal space
