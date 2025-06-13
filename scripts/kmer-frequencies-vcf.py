@@ -3,6 +3,8 @@ from cyvcf2 import VCF
 from collections import Counter
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from os.path import basename
 import sys
 import numpy as np
@@ -77,31 +79,13 @@ def main():
         df.loc[df["haplotype"] == "minor", "Haplotype"] = 0.5
         df.loc[df["haplotype"] == "major", "Haplotype"] = 1
 
-        df["spacer"] = 1
-        df["spacer2"] = 1
-        df["spacer3"] = 1
         # drop the Group column
         df = df.drop(columns=["Group", "haplotype"])
 
     df = df.fillna(0).set_index("individual")
     df["CTCTCTCTCTCT"] = df["CTCTCTCTCTCT"].apply(lambda x: x if x > 0.01 else 0)
     df.to_csv(args.counts if args.counts else f"kmer{args.kmer}-counts.tsv", sep="\t")
-    if args.nosort:
-        plot_heatmap(df.transpose(), k=args.kmer, outputfile=args.output, args=args)
-    else:
-        plot_heatmap(
-            df.sort_values(
-                by=[
-                    "CT" * int(args.kmer / 2),
-                    "CCTT" * int(args.kmer / 4),
-                    "CTTT" * int(args.kmer / 4),
-                    "CCCT" * int(args.kmer / 4),
-                ],
-            ).transpose(),
-            k=args.kmer,
-            outputfile=args.output,
-            args=args,
-        )
+    plot_heatmap(df, args=args)
 
 
 def count_kmers(seq, k=4):
@@ -137,8 +121,19 @@ def prune_counts(kmers):
     return {k: v / total_kmers for k, v in pruned.items()}
 
 
-def plot_heatmap(df, k, outputfile, args, max_missing=0.1):
-    color_scale = [(0, "white"), (1, "black")]
+def plot_heatmap(df, args, max_missing=0.1):
+    if args.nosort:
+        df = df.transpose()
+    else:
+        df = df.sort_values(
+            by=[
+                "CT" * int(args.kmer / 2),
+                "CCTT" * int(args.kmer / 4),
+                "CTTT" * int(args.kmer / 4),
+                "CCCT" * int(args.kmer / 4),
+            ],
+            ascending=False,
+        ).transpose()
     # only keep rows that are not < 0.01 for too many samples
     mask1 = (df < 0.01).sum(axis=1) < ((1 - max_missing) * len(df.columns))
     # but keep also rows that are above 0.2 for at least one sample
@@ -146,39 +141,22 @@ def plot_heatmap(df, k, outputfile, args, max_missing=0.1):
 
     df = df.loc[mask1 | mask2, :]
 
-    # change the row with label "spacer" to 0
-    # I set it to 1 to make sure it is not removed by the mask
-    # this is quite ridiculous but hey bear with me
-    df.loc["spacer", :] = 0
-    df.loc["spacer2", :] = 0
-    df.loc["spacer3", :] = 0
-
     kmers = [
         c
         for c in df.index
-        if c not in ["spacer2", "spacer", "spacer3", "aFTLD-U", "Haplotype"]
+        if c not in ["aFTLD-U", "Haplotype"]
     ]
 
     # change the order of the kmers to show CT dimer first and CCTT tetramer second
     df = df.reindex(
-        [
-            "Haplotype",
-            "spacer",
-            "aFTLD-U",
-            "spacer2",
-            "spacer3",
-            "CTCTCTCTCTCT",
-            "CCTTCCTTCCTT",
-        ]
+        ["CTCTCTCTCTCT", "CCTTCCTTCCTT",]
         + [k for k in kmers if k not in ["CTCTCTCTCTCT", "CCTTCCTTCCTT"]]
+        + ["aFTLD-U", "Haplotype"]
     )
 
     rename_dict = {
-        "spacer": "",
-        "spacer2": " ",
-        "spacer3": "  ",
-        "aFTLD-U": "Phenotype",
-        "Haplotype": "Haplotype",
+        # "aFTLD-U": "Phenotype",
+        # "Haplotype": "Haplotype",
         "CTCTCTCTCTCT": "(CT)<sub>6</sub>",
         "CTTTCTTTCTTT": "(CTTT)<sub>3</sub>",
         "CCTTCCTTCCTT": "(CCTT)<sub>3</sub>",
@@ -189,17 +167,55 @@ def plot_heatmap(df, k, outputfile, args, max_missing=0.1):
         "GTGTGTGTGTGT": "(GT)<sub>6</sub>",
     }
 
-    fig = px.imshow(
-        df.transpose(),
-        x=[rename_dict.get(c, c) for c in df.index],
-        labels=dict(
-            x="",
-            y="Individuals with an expanded repeat allele",
-            color="Fraction",
+    df = df.transpose()
+
+    from plotly.subplots import make_subplots
+    fig = make_subplots(rows=1, cols=3, column_widths=[0.1, 0.1, 0.8], shared_yaxes=True, horizontal_spacing=0.01)
+
+    kmer_df = df[
+        [k for k in df.columns if k not in ["aFTLD-U", "Haplotype"]]
+    ]
+    info_df = df[["aFTLD-U", "Haplotype"]]
+
+    fig.add_trace(
+        go.Heatmap(
+            z=kmer_df.values,
+            y=kmer_df.index,
+            x=[rename_dict.get(c, c) for c in kmer_df.columns],
+            # labels=dict(
+            #     x="",
+            #     y="Individuals with an expanded repeat allele",
+            #     color="Fraction",
+            # ),
+            colorscale=[(0, "white"), (1, "black")],
+            colorbar=dict(
+                title="Fraction",
+                nticks=5,
+                tickmode="auto",
+                len=0.75
+            ),
         ),
-        color_continuous_scale=color_scale,
-        aspect="auto",
+        row=1,
+        col=3,
     )
+    fig.add_trace(go.Heatmap(
+        z=info_df.loc[:, "aFTLD-U"].values.reshape(-1, 1),
+        y=info_df.index,
+        x=["Phenotype"],
+        colorscale=[(0, "black"), (1, "red")],
+        showscale=False,
+        ),
+        row=1, col=1,
+        )
+    fig.add_trace(go.Heatmap(
+        z=info_df.loc[:, "Haplotype"].values.reshape(-1, 1),
+        y=info_df.index,
+        x=["Haplotype"],
+        colorscale=[(0, "blue"), (0.5, "orange"), (1, "red")],
+        showscale=False,
+        ),
+        row=1, col=2,
+        )
     fig.update_xaxes(
         tickfont_size=20,
         tickangle=-90,
@@ -221,9 +237,9 @@ def plot_heatmap(df, k, outputfile, args, max_missing=0.1):
         title=title,
         xaxis={"dtick": 1},
     )
-    fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
-    fig.update_yaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
-    plotname = outputfile if outputfile else f"kmer{k}-heatmap.html"
+    fig.update_xaxes(showline=True, linewidth=2, linecolor="black")
+    fig.update_yaxes(showline=True, linewidth=2, linecolor="black", row=1, col=1)
+    plotname = args.output if args.output else f"kmer{args.kmer}-heatmap.html"
     with open(plotname, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
 
