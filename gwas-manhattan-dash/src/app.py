@@ -73,13 +73,14 @@ app.layout = html.Div([
      State('hwe-ctrl-filter', 'value'),
      State('batch-fepval-fus-filter', 'value'),
      State('ctrl-f-miss-filter', 'value'),
-     State('case-f-miss-filter', 'value'),  # Add this new state
+     State('case-f-miss-filter', 'value'),
+     State('allele-freq-filter', 'value'),  # Updated ID
      State('batch-pval-ctrl-filter', 'value'),
      State('using-full-data', 'data')],
     prevent_initial_call=False
 )
 def update_plot(apply_clicks, full_data_clicks, vqsr_values, hwe_ctrl, 
-                batch_fepval_fus, ctrl_f_miss, case_f_miss, batch_pval_ctrl, using_full_data):
+                batch_fepval_fus, ctrl_f_miss, case_f_miss, allele_freq, batch_pval_ctrl, using_full_data):
     global full_data
     
     # Initialize button text based on current state
@@ -110,7 +111,8 @@ def update_plot(apply_clicks, full_data_clicks, vqsr_values, hwe_ctrl,
             hwe_ctrl_cutoff=float(hwe_ctrl) if hwe_ctrl else None,
             batch_fepval_fus_cutoff=float(batch_fepval_fus) if batch_fepval_fus else None,
             ctrl_f_miss_cutoff=float(ctrl_f_miss) if ctrl_f_miss else None,
-            case_f_miss_cutoff=float(case_f_miss) if case_f_miss else None,  # Add this parameter
+            case_f_miss_cutoff=float(case_f_miss) if case_f_miss else None,
+            allele_freq_cutoff=float(allele_freq) if allele_freq else None,  # Updated parameter name
             batch_pval_ctrl_cutoff=float(batch_pval_ctrl) if batch_pval_ctrl else None,
         )
                 
@@ -340,7 +342,7 @@ def load_data(file_path, pval_threshold=1e-3):
         sep=",",
         compression="gzip",
         usecols=["chrom", "genpos", "pval", "VQSR", "HWE.ctrl", "batch.FEpval.FUS", 
-                "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl"]  # Make sure case_F_MISS is here
+                "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl", "a1freq_cases", "a1freq_controls"]
     )
 
     # Pre-filter by p-value to improve performance, if threshold is provided
@@ -445,7 +447,8 @@ def get_peak_variants(df, significance_threshold=5e-8, distance_threshold=500000
     if has_original_cols:
         display_columns = [
             "original_chrom", "original_pos", "P", "-log10P", 
-            "VQSR", "HWE.ctrl", "batch.FEpval.FUS", "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl"  # Added case_F_MISS
+            "VQSR", "HWE.ctrl", "batch.FEpval.FUS", "ctrl_F_MISS", "case_F_MISS", 
+            "a1freq_cases", "a1freq_controls", "batch.pval.ctrl"  # Added both allele frequency columns
         ]
         column_rename = {
             "original_chrom": "Chromosome",
@@ -456,7 +459,8 @@ def get_peak_variants(df, significance_threshold=5e-8, distance_threshold=500000
     else:
         display_columns = [
             "CHROM_str", "newPOS", "P", "-log10P", 
-            "VQSR", "HWE.ctrl", "batch.FEpval.FUS", "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl"  # Added case_F_MISS
+            "VQSR", "HWE.ctrl", "batch.FEpval.FUS", "ctrl_F_MISS", "case_F_MISS", 
+            "a1freq_cases", "a1freq_controls", "batch.pval.ctrl"  # Added both allele frequency columns
         ]
         column_rename = {
             "CHROM_str": "Chromosome",
