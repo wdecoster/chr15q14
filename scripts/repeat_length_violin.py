@@ -95,11 +95,16 @@ def main():
         df = df.merge(sampleinfo, on="name", how="left").sort_values("group")
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
-            title = (
-                f"Repeat length {locus}"
-                if df["variant"].nunique() > 1
-                else "Repeat length"
-            )
+            # Use custom title if provided, otherwise use the default logic
+            if args.title:
+                title = args.title
+            else:
+                title = (
+                    f"Repeat length {locus}"
+                    if df["variant"].nunique() > 1
+                    else "Repeat length"
+                )
+                
             fig = make_violin_plot(df.loc[df["variant"] == locus], title, args)
 
             fig.write_html(
@@ -117,7 +122,8 @@ def make_violin_plot(df, title, args):
         df,
         x="group",
         y="length",
-        color_discrete_sequence=["black"],
+        color="group",
+        color_discrete_map={"in-house<br>non-aFTLD-U": "black", "aFTLD-U": "red"},
         hover_data=[
             "name",
             "%CCTT",
@@ -133,24 +139,23 @@ def make_violin_plot(df, title, args):
     if args.line:
         fig.add_hline(y=args.line, line_dash="dash", line_color="grey")
     # make the dots smaller
-    # fig.update_traces(spanmode="hard", marker=dict(size=4, color="black"))
-    fig.update_traces(marker=dict(size=4, color="black"), jitter=1.0)
+    fig.update_traces(marker=dict(size=4), jitter=1.0)
     fig.update_layout(plot_bgcolor="white")
     fig.update_yaxes(title_text="Consensus repeat length")
-    fig.update_xaxes(title_text="")
+    fig.update_xaxes(title_text="Phenotype")
     fig.update_layout(
         font=dict(size=18),
         legend=dict(title="Sample", itemsizing="constant"),
         margin=dict(l=0, r=0, t=50, b=0),
+        showlegend=False
     )
     # show zerolines
-    fig.update_xaxes(showline=True, linewidth=2, linecolor="black", mirror=True)
-    upper_limit = 2500
+    fig.update_xaxes(showline=True, linewidth=2, linecolor="black")
+    upper_limit = args.y_limit
     fig.update_yaxes(
         showline=True,
         linewidth=2,
         linecolor="black",
-        mirror=True,
         range=[0, upper_limit],
     )
     # reduce the horizontal space
@@ -205,6 +210,12 @@ def get_args():
     parser.add_argument("--showboth", help="show both haplotypes", action="store_true")
     parser.add_argument(
         "--stddev", help="Show repeat length standard deviation", action="store_true"
+    )
+    parser.add_argument(
+        "--y-limit", type=int, default=2500, help="Upper limit for y-axis (default: 2500)"
+    )
+    parser.add_argument(
+        "--title", help="Custom title for the plot (default: 'Repeat length' or 'Repeat length CHROM:POS')"
     )
     return parser.parse_args()
 
