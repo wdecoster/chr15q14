@@ -42,13 +42,50 @@ def load_data(file_path, pval_threshold=1e-3):
         If None, load all data without p-value filtering
     """
     print(f"\n\nLoading data from {file_path}...")
-    df = pd.read_csv(
-        file_path,
-        sep=",",
-        compression="gzip",
-        usecols=["chrom", "genpos", "pval", "VQSR", "HWE.ctrl", "batch.FEpval.FUS", 
-                "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl", "a1freq_cases", "a1freq_controls"]
-    )
+    
+    # Base columns that we always need
+    base_columns = ["chrom", "genpos", "pval", "VQSR", "HWE.ctrl", "batch.FEpval.FUS", 
+                   "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl", "a1freq_cases", "a1freq_controls"]
+    
+    # Try to load with OR column first
+    try:
+        df = pd.read_csv(
+            file_path,
+            sep=",",
+            compression="gzip",
+            usecols=base_columns + ["OR"]
+        )
+        print("Loaded data with OR column")
+        has_beta = False
+        
+    except ValueError as e:
+        # If OR column doesn't exist, try with beta column
+        if "OR" in str(e):
+            try:
+                df = pd.read_csv(
+                    file_path,
+                    sep=",",
+                    compression="gzip",
+                    usecols=base_columns + ["beta"]
+                )
+                print("Loaded data with beta column")
+                has_beta = True
+                
+            except ValueError as e2:
+                # If neither OR nor beta exists, load without either
+                if "beta" in str(e2):
+                    print("Warning: Neither OR nor beta column found, loading without effect size")
+                    df = pd.read_csv(
+                        file_path,
+                        sep=",",
+                        compression="gzip",
+                        usecols=base_columns
+                    )
+                    has_beta = False
+                else:
+                    raise e2
+        else:
+            raise e
 
     # Pre-filter by p-value to improve performance, if threshold is provided
     print(f"Total variants before filtering: {len(df)}")
@@ -57,6 +94,12 @@ def load_data(file_path, pval_threshold=1e-3):
         print(f"Variants after p-value filtering (p ≤ {pval_threshold}): {len(df)}")
     else:
         print(f"Using all {len(df)} variants (no p-value pre-filtering)")
+
+    # Convert beta to OR if needed
+    if has_beta:
+        print("Converting beta to OR (OR = e^beta)")
+        df["OR"] = np.exp(df["beta"])
+        df = df.drop(columns=["beta"])
 
     # Keep original columns for hover and table (rename them for clarity)
     df["original_chrom"] = df["chrom"] 

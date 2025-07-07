@@ -1,3 +1,6 @@
+import plotly.express as px
+import numpy as np
+
 def generate_manhattan_plot(df, genes):
     significance_threshold = 5e-8
 
