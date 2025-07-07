@@ -68,18 +68,39 @@ def create_filter_layout(vqsr_values=None):
             )
         ], className="filter-group"),
         
-        # case_F_MISS Filter (new)
+        # case_F_MISS Filter
         html.Div([
             html.Label("case_F_MISS Filter (remove above):", className="filter-label"),
             dcc.Input(
                 id='case-f-miss-filter',
                 type='number',
                 placeholder='e.g. 0.05',
-                value=0.1,  # Same default as ctrl_F_MISS
+                value=0.1,
                 step=0.01,
                 min=0,
                 max=1,
                 className="input-field"
+            )
+        ], className="filter-group"),
+        
+        # Allele frequency filter (new) - keeps variants with freq > cutoff in EITHER cases OR controls
+        html.Div([
+            html.Label("Allele Frequency Filter (remove if below in both cases AND controls):", 
+                      className="filter-label"),
+            dcc.Input(
+                id='allele-freq-filter',
+                type='number',
+                placeholder='e.g. 0.01',
+                value=0.01,  # Default value of 0.01
+                step=0.001,
+                min=0,
+                max=1,
+                className="input-field"
+            ),
+            html.Div(
+                "Keeps variants with frequency > cutoff in either cases OR controls",
+                className="filter-help-text",
+                style={'fontSize': '12px', 'color': '#666', 'marginTop': '5px'}
             )
         ], className="filter-group"),
         

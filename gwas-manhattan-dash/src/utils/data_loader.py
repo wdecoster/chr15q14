@@ -47,7 +47,7 @@ def load_data(file_path, pval_threshold=1e-3):
         sep=",",
         compression="gzip",
         usecols=["chrom", "genpos", "pval", "VQSR", "HWE.ctrl", "batch.FEpval.FUS", 
-                "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl"]
+                "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl", "a1freq_cases", "a1freq_controls"]
     )
 
     # Pre-filter by p-value to improve performance, if threshold is provided
@@ -83,7 +83,8 @@ def load_data(file_path, pval_threshold=1e-3):
 
 def filter_data(df, vqsr_values=None, hwe_ctrl_cutoff=None, 
                 batch_fepval_fus_cutoff=None, ctrl_f_miss_cutoff=None,
-                case_f_miss_cutoff=None, batch_pval_ctrl_cutoff=None):
+                case_f_miss_cutoff=None, batch_pval_ctrl_cutoff=None,
+                allele_freq_cutoff=None):
     """Filter the data based on the specified criteria"""
     filtered_df = df.copy()
     
@@ -110,6 +111,13 @@ def filter_data(df, vqsr_values=None, hwe_ctrl_cutoff=None,
     # Apply batch.pval.ctrl filter (numeric, below cutoff)
     if batch_pval_ctrl_cutoff is not None:
         filtered_df = filtered_df[filtered_df["batch.pval.ctrl"] > batch_pval_ctrl_cutoff]
+    
+    # Apply allele frequency filter - keep variants with frequency above cutoff in EITHER cases OR controls
+    if allele_freq_cutoff is not None:
+        filtered_df = filtered_df[
+            (filtered_df["a1freq_cases"] > allele_freq_cutoff) | 
+            (filtered_df["a1freq_controls"] > allele_freq_cutoff)
+        ]
     
     return filtered_df
 
