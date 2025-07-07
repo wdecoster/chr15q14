@@ -69,34 +69,34 @@ def load_data(input_file):
 
 
 def load_genes(df):
-    genes = pd.DataFrame(
-        {
-            "CHROM": ["1", "7", "9", "11", "12", "12", "15", "16", "23"],
-            "POS": [
-                154828309,
-                70758780,
-                101329562,
-                75199580,
-                46480289,
-                71704570,
-                34612468,
-                76482637,
-                404724,
-            ],
-            "Gene": [
-                "KCNN3",
-                "AUTS2",
-                "PLPPR1",
-                "SLCO2B1",
-                "LOC100288798",
-                "TMEM19",
-                "GOLGA8B",
-                "CNTNAP4",
-                "PPP2R3B",
-            ],
-        }
-    )
-
+    # genes = pd.DataFrame(
+    #     {
+    #         "CHROM": ["1", "7", "9", "11", "12", "12", "15", "16", "23"],
+    #         "POS": [
+    #             154828309,
+    #             70758780,
+    #             101329562,
+    #             75199580,
+    #             46480289,
+    #             71704570,
+    #             34612468,
+    #             76482637,
+    #             404724,
+    #         ],
+    #         "Gene": [
+    #             "KCNN3",
+    #             "AUTS2",
+    #             "PLPPR1",
+    #             "SLCO2B1",
+    #             "LOC100288798",
+    #             "TMEM19",
+    #             "GOLGA8B",
+    #             "CNTNAP4",
+    #             "PPP2R3B",
+    #         ],
+    #     }
+    # )
+    genes = pd.DataFrame({"CHROM": ["15"], "POS": [34612468], "Gene": ["GOLGA8B"]})
     genes["newPOS"] = genes.apply(
         lambda x: x["POS"]
         + sum([chrom_to_length[str(i)] for i in range(1, int(x["CHROM"]))]),
@@ -124,25 +124,28 @@ def plot(df, genes):
     )
     fig.add_hline(y=-np.log10(significance_threshold), line_color="red", line_width=0.6)
 
-    ays = {"LOC100288798": -85, "SLCO2B1": -55, "TMEM19": -30, "CNTNAP4": -45}
-    axs = {
-        "CNTNAP4": 2,
-        "TMEM19": 0,
-        "SLCO2B1": -20,
-        "PPP2R3B": 10,
-        "LOC100288798": -15,
-        "KCNN3": 10,
-    }
-    xanchors = {
-        "TMEM19": "left",
-        "SLCO2B1": "right",
-        "PPP2R3B": "center",
-        "CNTNAP4": "left",
-        "AUTS2": "right",
-        "LOC100288798": "right",
-        "KCNN3": "left",
-        "GOLGA8B": "right",
-    }
+    # ays = {"LOC100288798": -85, "SLCO2B1": -55, "TMEM19": -30, "CNTNAP4": -45}
+    # axs = {
+    #     "CNTNAP4": 2,
+    #     "TMEM19": 0,
+    #     "SLCO2B1": -20,
+    #     "PPP2R3B": 10,
+    #     "LOC100288798": -15,
+    #     "KCNN3": 10,
+    # }
+    # xanchors = {
+    #     "TMEM19": "left",
+    #     "SLCO2B1": "right",
+    #     "PPP2R3B": "center",
+    #     "CNTNAP4": "left",
+    #     "AUTS2": "right",
+    #     "LOC100288798": "right",
+    #     "KCNN3": "left",
+    #     "GOLGA8B": "right",
+    # }
+    axs = {}
+    ays = {}
+    xanchors = {"GOLGA8B": "right"}
     for _, row in genes.iterrows():
         if axs.get(row["Gene"], -10) == 0:
             xshift = 0
@@ -207,13 +210,14 @@ def plot(df, genes):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument(
+    parser.add_argument("-i",
         "--input",
         type=str,
         help="Path to the input file",
         default="~/local/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
     )
     parser.add_argument(
+        "-o",
         "--output",
         type=str,
         help="Path to the output plot file",
