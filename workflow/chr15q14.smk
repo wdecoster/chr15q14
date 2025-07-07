@@ -181,6 +181,7 @@ rule all:
         deepvariant = os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
         shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
         shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
+        phasius = os.path.join(outdir, "phasius.html"),
 
 
 
@@ -854,6 +855,37 @@ rule sex_check:
     shell:
         "python {params.script} -c {input} -o {output} --sampleinfo {params.cohort} 2> {log}"
 
+
+## the rules below are for genotyping the rest of the region in the representative cohort, looking for other variants.
+## the region is defined as the 500kb around the delT tagging variant, i.e. chr15:34362469-34862469
+
+def get_representative_crams(_wildcards):
+    return crams.loc[(crams["individual"].isin(representative_cohort)) & (crams["haplotype"] == "major"), "path-to-cram"].tolist()
+
+
+rule phasius_region:
+    """
+    Run phasius on all the CRAM files in the representative cohort with hapA, using the 500kb region around the tagging variant.
+    """
+    input:
+        crams = get_representative_crams,
+    output:
+        plot = os.path.join(outdir, "phasius.html"),
+        summary = os.path.join(outdir, "phasius_summary.tsv")
+    params:
+        region = "chr15:34362469-34862469",
+        binary = "/home/wdecoster/repositories/phasius/target/release/phasius",
+    log:
+        os.path.join(outdir, "logs/workflows/phasius_region.log"),
+    shell:
+        """
+        {params.binary} \
+        -o {output.plot} \
+        --region {params.region} \
+        --strict \
+        --summary {output.summary} \
+        {input} 2> {log}
+        """
 
 rule write_bed:
     """
