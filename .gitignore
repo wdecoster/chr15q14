@@ -6,3 +6,6 @@ locuszoom-aFTLD-U.tsv.gz
 notebooks/privacy.py
 notebooks/__pycache__/privacy.cpython-310.pyc
 scripts/privacy.py
+manhattan-regenie.html
+qq_plot_main.html
+gwas-regenie-summary.tsv.gz
