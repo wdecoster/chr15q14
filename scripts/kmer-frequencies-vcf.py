@@ -216,11 +216,6 @@ def plot_heatmap(df, args, max_missing=0.1):
         ),
         row=1, col=2,
         )
-    fig.update_xaxes(
-        tickfont_size=20,
-        tickangle=-90,
-    )
-    fig.update_yaxes(showticklabels=False)
 
     title = (
         f"Repeat composition (individual reads)"
@@ -237,8 +232,9 @@ def plot_heatmap(df, args, max_missing=0.1):
         title=title,
         xaxis={"dtick": 1},
     )
-    fig.update_xaxes(showline=True, linewidth=2, linecolor="black")
-    fig.update_yaxes(showline=True, linewidth=2, linecolor="black", row=1, col=1)
+
+    fig.update_xaxes(tickfont_size=20, tickangle=-90, showline=True, linewidth=2, linecolor="black")
+    fig.update_yaxes(showticklabels=False, title="Individuals with an expanded repeat", showline=True, linewidth=2, linecolor="black", row=1, col=1)
     plotname = args.output if args.output else f"kmer{args.kmer}-heatmap.html"
     with open(plotname, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
