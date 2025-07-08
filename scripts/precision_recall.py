@@ -9,16 +9,16 @@ import pandas as pd
 from argparse import ArgumentParser
 from sklearn.metrics import precision_score, recall_score
 from scipy.stats import bootstrap
-
-
+from scipy.stats import fisher_exact
 
 
 def main():
     args = get_args()
     df = pd.read_csv(args.data, sep="\t").drop_duplicates(subset=["name"])
-    df = df[df["haplotype"].isin(["major", "minor"])]
     df["labels"] = df["group"].apply(lambda x: 1 if x == "aFTLD-U" else 0)
-
+    fisher_exact_test(df, args)
+    
+    df = df[df["haplotype"].isin(["major", "minor"])]
     print(f"Testing precision recall for the CT_dimer_count with a cutoff of {args.cutoff_CT_dimer}")
     df["test"] = (df["CT_dimer_count"] > args.cutoff_CT_dimer).astype(int)
     precision_recall_bootstrapped(df)
@@ -35,6 +35,33 @@ def precision_recall_bootstrapped(df):
     res = bootstrap((df["labels"], df["test"]), recall_score, n_resamples=10000, paired=True)
     print(f"\tRecall: {recall:.2f}, 95% CI: {res.confidence_interval.low:.2f}-{res.confidence_interval.high:.2f}")
 
+def fisher_exact_test(df, args):
+    """Calculate 4 Fisher exact tests:
+    1. major haplotype
+    2. major+minor haplotype
+    3. CT_dimer_count > cutoff
+    4. double cutoff
+    """
+    df["test"] = (df["haplotype"] == "major").astype(int)
+    contingency_table = pd.crosstab(df["labels"], df["test"])
+    res = fisher_exact(contingency_table, alternative="two-sided")
+    print(f"Fisher exact test for major haplotype: p-value = {res.pvalue:.4E}")
+
+    df["test"] = (df["haplotype"].isin(["major", "minor"])).astype(int)
+    contingency_table = pd.crosstab(df["labels"], df["test"])
+    res = fisher_exact(contingency_table, alternative="two-sided")
+    print(f"Fisher exact test for major+minor haplotype: p-value = {res.pvalue:.4E}")
+
+    df["test"] = (df["CT_dimer_count"] > args.cutoff_CT_dimer).astype(int)
+    contingency_table = pd.crosstab(df["labels"], df["test"])
+    res = fisher_exact(contingency_table, alternative="two-sided")
+    print(f"Fisher exact test for CT_dimer_count > {args.cutoff_CT_dimer}: p-value = {res.pvalue:.4E}")
+
+    df["test"] = (df["length"] > args.cutoff_double[0]) & (df["%CT"] > args.cutoff_double[1]).astype(int)
+    contingency_table = pd.crosstab(df["labels"], df["test"])
+    res = fisher_exact(contingency_table, alternative="two-sided")
+    print(f"Fisher exact test for double cutoff: p-value = {res.pvalue:.4E}")
+    print("\n\n\n")
 
 
 def get_args():
