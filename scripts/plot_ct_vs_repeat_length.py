@@ -14,9 +14,10 @@ def main():
         name = basename(vcf).replace(".vcf.gz", "").replace("_FCX", "")
         try:
             for variant in VCF(vcf):
+                alleles = variant.ALT if variant.ALT else variant.REF
                 if args.showboth:
                     for alt, sup, stddev in zip(
-                        variant.ALT,
+                        alleles,
                         variant.format("SUP")[0],
                         variant.INFO.get("STDEV"),
                     ):
@@ -40,7 +41,7 @@ def main():
                     alts = [
                         (alt, sup, stddev)
                         for alt, sup, stddev in zip(
-                            variant.ALT,
+                            alleles,
                             variant.format("SUP")[0],
                             variant.INFO.get("STDEV"),
                         )
