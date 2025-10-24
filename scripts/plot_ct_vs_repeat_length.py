@@ -92,11 +92,19 @@ def main():
     else:
         df["highlight"] = False
     if args.sampleinfo:
-        sampleinfo = pd.read_csv(
-            args.sampleinfo,
-            sep="\t",
-            usecols=["individual", "cohort", "sex", "haplotype", "source tissue"],
-        ).rename(columns={"cohort": "group", "individual": "name"})
+        try:
+            sampleinfo = pd.read_csv(
+                args.sampleinfo,
+                sep="\t",
+                usecols=["individual", "cohort", "sex", "haplotype", "source tissue"],
+            ).rename(columns={"cohort": "group", "individual": "name"})
+        except ValueError:
+            # try with fewer columns
+            sampleinfo = pd.read_csv(
+                args.sampleinfo,
+                sep="\t",
+                usecols=["individual", "cohort"],
+            ).rename(columns={"cohort": "group", "individual": "name"})
         df = df.merge(sampleinfo, on="name", how="left").drop_duplicates()
     if args.copy_number:
         copy_number = pd.read_csv(args.copy_number, sep="\t", header=None, names=["name", "copy number"])
@@ -104,49 +112,124 @@ def main():
         df = df.merge(copy_number, on="name", how="left").drop_duplicates()
     df.to_csv(args.overview, index=False, sep="\t")
     df = df.loc[df["length"] >= args.min_length]
-    with open(args.output, "w") as output:
-        for locus in df["variant"].unique():
-            title = (
-                f"Consensus repeat length vs %CT at {locus}"
-                if df["variant"].nunique() > 1
-                else "Consensus repeat length vs %CT"
-            )
-            fig, upper_limit = make_scatter_plot(
-                df.loc[df["variant"] == locus], title, args
-            )
+    
+    unique_loci = df["variant"].unique()
+    
+    batch_size = 10
+    # If more than <batch_size> loci, create batches
+    if len(unique_loci) > batch_size:
+        import os
+        base_output = args.output
+        # Remove .html extension if present to add batch suffix
+        if base_output.endswith('.html'):
+            base_name = base_output[:-5]
+            extension = '.html'
+        else:
+            base_name = base_output
+            extension = ''
+        
+        # Split loci into batches
+        for batch_idx in range(0, len(unique_loci), batch_size):
+            batch_loci = unique_loci[batch_idx:batch_idx + batch_size]
+            batch_num = (batch_idx // batch_size) + 1
+            
+            # Create output filename with batch suffix
+            if batch_num == 1:
+                output_file = base_output
+            else:
+                output_file = f"{base_name}_{batch_num}{extension}"
+            
+            with open(output_file, "w") as output:
+                for locus in batch_loci:
+                    title = (
+                        f"Consensus repeat length vs %CT at {locus}"
+                        if df["variant"].nunique() > 1
+                        else "Consensus repeat length vs %CT"
+                    )
+                    fig, upper_limit = make_scatter_plot(
+                        df.loc[df["variant"] == locus], title, args
+                    )
 
-            fig.write_html(
-                output,
-                include_plotlyjs="cdn",
-                full_html=True if output.tell() == 0 else False,
-            )
-            if args.haplotypes:
-                fig, _ = make_scatter_plot(
-                    df.loc[
-                        (df["variant"] == locus) & (df["haplotype"] == "major")
-                    ].drop(columns=["haplotype"]),
-                    title + " for haplotype A",
-                    args,
-                    upper_limit=upper_limit,
+                    fig.write_html(
+                        output,
+                        include_plotlyjs="cdn",
+                        full_html=True if output.tell() == 0 else False,
+                    )
+                    if args.haplotypes:
+                        fig, _ = make_scatter_plot(
+                            df.loc[
+                                (df["variant"] == locus) & (df["haplotype"] == "major")
+                            ].drop(columns=["haplotype"]),
+                            title + " for haplotype A",
+                            args,
+                            upper_limit=upper_limit,
+                        )
+                        fig.write_html(
+                            output,
+                            include_plotlyjs="cdn",
+                            full_html=False,
+                        )
+                        fig, _ = make_scatter_plot(
+                            df.loc[
+                                (df["variant"] == locus) & (df["haplotype"] == "minor")
+                            ].drop(columns=["haplotype"]),
+                            title + " for haplotype B",
+                            args,
+                            upper_limit=upper_limit,
+                        )
+                        fig.write_html(
+                            output,
+                            include_plotlyjs="cdn",
+                            full_html=False,
+                        )
+            
+            sys.stderr.write(f"Created batch {batch_num} with {len(batch_loci)} loci: {output_file}\n")
+    
+    else:
+        # Original behavior for 20 or fewer loci
+        with open(args.output, "w") as output:
+            for locus in unique_loci:
+                title = (
+                    f"Consensus repeat length vs %CT at {locus}"
+                    if df["variant"].nunique() > 1
+                    else "Consensus repeat length vs %CT"
                 )
+                fig, upper_limit = make_scatter_plot(
+                    df.loc[df["variant"] == locus], title, args
+                )
+
                 fig.write_html(
                     output,
                     include_plotlyjs="cdn",
-                    full_html=False,
+                    full_html=True if output.tell() == 0 else False,
                 )
-                fig, _ = make_scatter_plot(
-                    df.loc[
-                        (df["variant"] == locus) & (df["haplotype"] == "minor")
-                    ].drop(columns=["haplotype"]),
-                    title + " for haplotype B",
-                    args,
-                    upper_limit=upper_limit,
-                )
-                fig.write_html(
-                    output,
-                    include_plotlyjs="cdn",
-                    full_html=False,
-                )
+                if args.haplotypes:
+                    fig, _ = make_scatter_plot(
+                        df.loc[
+                            (df["variant"] == locus) & (df["haplotype"] == "major")
+                        ].drop(columns=["haplotype"]),
+                        title + " for haplotype A",
+                        args,
+                        upper_limit=upper_limit,
+                    )
+                    fig.write_html(
+                        output,
+                        include_plotlyjs="cdn",
+                        full_html=False,
+                    )
+                    fig, _ = make_scatter_plot(
+                        df.loc[
+                            (df["variant"] == locus) & (df["haplotype"] == "minor")
+                        ].drop(columns=["haplotype"]),
+                        title + " for haplotype B",
+                        args,
+                        upper_limit=upper_limit,
+                    )
+                    fig.write_html(
+                        output,
+                        include_plotlyjs="cdn",
+                        full_html=False,
+                    )
 
 
 def count_ct_by_subtracting_motifs(seq):
@@ -179,8 +262,8 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             "%AT",
             "support",
             "stddev",
-            "sex",
-            "copy number",
+            "copy number" if "copy number" in df.columns else None,
+            "sex" if "sex" in df.columns else None,
             "haplotype" if "haplotype" in df.columns else None,
         ],
         title=title,
@@ -226,10 +309,21 @@ def make_scatter_plot(df, title, args, upper_limit=None):
                     ay=20,
                 )
     fig.update_traces(marker=dict(size=9, opacity=0.7))
-    fig.update_layout(
-        plot_bgcolor="white",
-        font=dict(size=20),
-        legend=dict(
+    
+    # Configure legend position based on command line argument
+    if args.legend_outside:
+        legend_config = dict(
+            title="",
+            itemsizing="constant",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=16),
+        )
+        plot_width = 1200  # Increase width to accommodate external legend
+    else:
+        legend_config = dict(
             title="",
             itemsizing="constant",
             yanchor="top",
@@ -237,8 +331,14 @@ def make_scatter_plot(df, title, args, upper_limit=None):
             xanchor="left",
             x=0.05,
             font=dict(size=16),
-        ),
-        width=1000,
+        )
+        plot_width = 1000  # Original width
+    
+    fig.update_layout(
+        plot_bgcolor="white",
+        font=dict(size=20),
+        legend=legend_config,
+        width=plot_width,
         height=500,
         margin=dict(l=0, r=0, t=50, b=0),
     )
@@ -270,7 +370,7 @@ def make_scatter_plot(df, title, args, upper_limit=None):
 
         for trace in fig.data:
             trace_haplotypes = df[df["group"] == trace.name]["haplotype"]
-            trace.update(marker_symbol=[symbol_map[hap] for hap in trace_haplotypes])
+            trace.update(marker_symbol=[symbol_map.get(hap, "diamond") for hap in trace_haplotypes])
 
         # add a legend for the haplotype, with the correct symbols
         fig.for_each_trace(lambda trace: trace.update(showlegend=False))
@@ -406,6 +506,11 @@ def get_args():
         "--overview",
         help="Output file for the overview table",
         default="repeat_length_overview.tsv",
+    )
+    parser.add_argument(
+        "--legend-outside",
+        help="Place legend outside of the plot area",
+        action="store_true",
     )
     return parser.parse_args()
 
