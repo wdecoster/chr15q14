@@ -1,5 +1,6 @@
 import pysam
 import plotly.graph_objects as go
+import plotly.express as px
 import pandas as pd
 from argparse import ArgumentParser
 import sys
@@ -12,7 +13,7 @@ from fuzzysearch import find_near_matches
 
 
 class Genotype(object):
-    def __init__(self, individual, num_reads, reads_initially, seq):
+    def __init__(self, individual, num_reads, reads_initially, seq, smallest_length_used):
         self.individual = individual
         self.num_reads = num_reads
         self.reads_initially = reads_initially
@@ -20,9 +21,13 @@ class Genotype(object):
         self.ct_dimer_count = self.count_ct_dimer() if seq else 0
         self.hexamer_count = seq.count("CCCTCT") if seq else 0
         self.length = len(seq) if seq else 0
+        self.smallest_length_used = smallest_length_used if smallest_length_used else 0
 
     def __repr__(self):
         return f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}"
+
+    def write_header():
+        return "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence"
 
     def count_ct_dimer(self):
         _seq = self.seq
@@ -33,18 +38,42 @@ class Genotype(object):
 
 def main():
     args = get_args()
-    df = get_data(args)
-    genotypes = genotype_samples(df, args)
+
+    # Check if we should load from pickle
+    if args.load_pickle:
+        import pickle
+        with open(args.load_pickle, 'rb') as f:
+            data = pickle.load(f)
+            df = data['df']
+            genotypes = data['genotypes']
+    else:
+        # Process data from CRAMs
+        if not args.crams:
+            sys.exit("Error: either --crams or --load-pickle must be specified")
+
+        df = get_data(args)
+        genotypes = genotype_samples(df, args)
+
+        if args.pickle:
+            import pickle
+            with open(args.pickle, 'wb') as f:
+                pickle.dump({'df': df, 'genotypes': genotypes}, f)
+
+    # Display genotypes
+    print(Genotype.write_header())
     for genotype in sorted(genotypes, key=lambda x: x.ct_dimer_count):
         print(genotype)
+
+    # Generate plots if requested
     if not args.noplot:
-        df = df[df["length"].between(args.minlength, args.maxlength)]
+        df_filtered = df[df["length"].between(args.minlength, args.maxlength)]
         with open(args.output, "w") as out:
             out.write(plot_genotypes(genotypes).to_html())
-            # out.write(ridges_plot(df).to_html())
-            out.write(scatter_plot(df, motif="CCCTCT count").to_html())
-            out.write(scatter_plot(df, motif="CT count").to_html())
-            out.write(scatter_motifs(df).to_html())
+            out.write(plot_violins(df_filtered, genotypes).to_html())
+            # out.write(ridges_plot(df_filtered).to_html())
+            # out.write(scatter_plot(df_filtered, motif="CCCTCT count", full=args.full).to_html())
+            out.write(scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
+            out.write(scatter_motifs(df_filtered).to_html())
 
 
 def genotype_samples(df, args):
@@ -56,9 +85,6 @@ def genotype_samples(df, args):
                 total=num_samples,
             )
         )
-    print(
-        "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence"
-    )
     return genotypes
 
 
@@ -73,13 +99,13 @@ def genotype_sample(df_sample, args, min_reads=100):
 
     name = df_sample["sample"].iloc[0]
     if (num_reads := len(df_sample)) < min_reads:
-        return Genotype(name, num_reads, reads_before, None)
+        return Genotype(name, num_reads, reads_before, None, None)
     else:
         # take min_reads number of reads, sorted by length
-        seqs = df_sample.sort_values(by="length")["seq"].to_list()[:num_reads]
+        seqs = df_sample.sort_values(by="length", ascending=False)["seq"].to_list()[:min_reads]
         # use those min_reads number of longest reads to create a consensus sequence
         consensus = pypoars.poa_consensus(seqs)
-        return Genotype(name, num_reads, reads_before, consensus)
+        return Genotype(name, num_reads, reads_before, consensus, len(seqs[-1]))
 
 
 def get_data(args):
@@ -207,7 +233,7 @@ def ridges_plot(df):
     return fig_ridges
 
 
-def scatter_plot(df, motif):
+def scatter_plot(df, motif, full=False):
     fig_scatter = go.Figure()
     colors = ["blue", "red", "green", "purple", "orange"]
     if len(df["sample"].unique()) > len(colors):
@@ -243,7 +269,7 @@ def scatter_plot(df, motif):
         linewidth=1,
         linecolor="black",
         mirror=True,
-        title="Read length",
+        title="Read length" if full else "non-ref length",
         rangemode="nonnegative",
     )
     return fig_scatter
@@ -336,6 +362,7 @@ def plot_genotypes(genotypes):
         linecolor="black",
         mirror=True,
         title="CT dimers",
+        rangemode="tozero"
     )
     fig_scatter.update_yaxes(
         showline=True,
@@ -346,6 +373,37 @@ def plot_genotypes(genotypes):
     )
     fig_scatter.add_vline(x=190, line_width=2, line_dash="dash", line_color="black")
     return fig_scatter
+
+
+def plot_violins(df, genotypes, min_ct_count=100):
+    """
+    Make a violin plot, with on the y-axis the samples and on the x-axis the CT count of the reads
+    Samples on the y-axis should be sorted by the consensus ct_dimer_count
+    """
+    #df = df[df["CT count"] > min_ct_count]
+    genotypes = [genotype for genotype in genotypes if genotype.ct_dimer_count > min_ct_count]
+    sorted_genotypes = sorted(genotypes, key=lambda g: g.ct_dimer_count)
+    sample_order = [genotype.individual for genotype in sorted_genotypes]
+    df = df[df["sample"].isin(sample_order)]
+
+    fig_violin = px.violin(df, x="sample", y="CT count", category_orders={"sample": sample_order},
+                           points=False, title=f"Violin plot of CT counts by sample (minimum {min_ct_count} CTs in consensus sequence)")
+    fig_violin.update_traces(spanmode="hard")
+    # on the same plot, add the consensus length for each sample with a red dot
+    fig_violin.add_trace(
+        go.Scatter(
+            x=sample_order,
+            y=[genotype.ct_dimer_count for genotype in sorted_genotypes],
+            mode="markers",
+            marker=dict(color="red", size=6),
+            name="Consensus Lengths",
+        )
+    )
+    fig_violin.update_layout(plot_bgcolor="white", margin=dict(l=0, r=0, t=50, b=0))
+    fig_violin.update_xaxes(showline=True, linewidth=1, linecolor="black", mirror=True, rangemode="nonnegative")
+    fig_violin.update_yaxes(showline=True, linewidth=1, linecolor="black", mirror=True)
+    fig_violin.add_hline(y=190, line_width=2, line_dash="dash", line_color="black")
+    return fig_violin
 
 
 def get_args():
@@ -362,11 +420,19 @@ def get_args():
         action="store_true",
         help="Use entire read sequence, not just non-reference bases",
     )
-    parser.add_argument("--output", default="read_lengths.html", help="Output file")
+    parser.add_argument("-o", "--output", default="read_lengths.html", help="Output file")
     parser.add_argument(
         "--threads", type=int, default=4, help="Number of threads to use"
     )
     parser.add_argument("--noplot", action="store_true", help="Don't make plots")
+    parser.add_argument(
+        "--pickle", 
+        help="Path to save processed data as pickle for faster reuse"
+    )
+    parser.add_argument(
+        "--load-pickle", 
+        help="Path to load previously processed data (bypasses CRAM processing)"
+    )
     return parser.parse_args()
 
 
