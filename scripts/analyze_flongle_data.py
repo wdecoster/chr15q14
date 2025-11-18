@@ -1,19 +1,11 @@
-import pysam
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
 from argparse import ArgumentParser
 import sys
-from itertools import cycle
-import pypoars
-import tqdm
-import concurrent.futures
 import os
-from fuzzysearch import find_near_matches
+from itertools import cycle
 
 
 class Genotype(object):
-    def __init__(self, individual, num_reads, reads_initially, seq, smallest_length_used):
+    def __init__(self, individual, num_reads, reads_initially, seq, smallest_length_used, filter="PASS"):
         self.individual = individual
         self.num_reads = num_reads
         self.reads_initially = reads_initially
@@ -22,12 +14,14 @@ class Genotype(object):
         self.hexamer_count = seq.count("CCCTCT") if seq else 0
         self.length = len(seq) if seq else 0
         self.smallest_length_used = smallest_length_used if smallest_length_used else 0
+        self.filter = filter
 
     def __repr__(self):
-        return f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}"
+        return f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}\t{self.filter}"
 
+    @staticmethod
     def write_header():
-        return "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence"
+        return "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence\tFilter"
 
     def count_ct_dimer(self):
         _seq = self.seq
@@ -77,6 +71,8 @@ def main():
 
 
 def genotype_samples(df, args):
+    import concurrent.futures
+    import tqdm
     num_samples = len(df["sample"].unique())
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.threads) as executor:
         genotypes = list(
@@ -95,20 +91,29 @@ def next_sample(df):
 
 def genotype_sample(df_sample, args, min_reads=100):
     reads_before = len(df_sample)
+    name = df_sample["sample"].iloc[0]
     df_sample = df_sample[df_sample["length"].between(args.minlength, args.maxlength)]
 
-    name = df_sample["sample"].iloc[0]
-    if (num_reads := len(df_sample)) < min_reads:
-        return Genotype(name, num_reads, reads_before, None, None)
-    else:
-        # take min_reads number of reads, sorted by length
-        seqs = df_sample.sort_values(by="length", ascending=False)["seq"].to_list()[:min_reads]
-        # use those min_reads number of longest reads to create a consensus sequence
+    num_reads = len(df_sample)
+    
+    # Set filter flag based on coverage
+    filter_flag = "PASS" if num_reads >= min_reads else "LOWCOV"
+    
+    # Always attempt consensus with available reads
+    if num_reads > 0:
+        import pypoars
+        # Use min_reads longest reads if available, otherwise use all reads
+        num_seqs = min(num_reads, min_reads)
+        seqs = df_sample.sort_values(by="length", ascending=False)["seq"].to_list()[:num_seqs]
         consensus = pypoars.poa_consensus(seqs)
-        return Genotype(name, num_reads, reads_before, consensus, len(seqs[-1]))
+        return Genotype(name, num_reads, reads_before, consensus, len(seqs[-1]), filter=filter_flag)
+    else:
+        return Genotype(name, num_reads, reads_before, None, None, filter=filter_flag)
 
 
 def get_data(args):
+    import pysam
+    import pandas as pd
     records = []
     for cram in args.crams:
         name = (
@@ -173,6 +178,7 @@ def non_ref_bases(read, minlength=50):
     # attempt to trim off the reference sequences that may be caugth in the softclipped region
     # however, it is not likely that perfect matches are found for every read
     # therefore, using a fuzzy search allowing for a few mismatches (~5%) is used
+    from fuzzysearch import find_near_matches
     right_seq = "GAGACGGAGTTTCTCTCTTGTTGCCCAGGCTGGAGTGCATGTTGCTGTGCACTTTGAGGGCAGGAACTG"
     matches = find_near_matches(right_seq, non_ref, max_l_dist=4)
     if len(matches) > 1:
@@ -206,6 +212,7 @@ def count_ct_by_subtracting_motifs(seq):
 
 
 def ridges_plot(df):
+    import plotly.graph_objects as go
     fig_ridges = go.Figure()
     for sample in df["sample"].unique():
         for strand in ["+", "-"]:
@@ -234,6 +241,7 @@ def ridges_plot(df):
 
 
 def scatter_plot(df, motif, full=False):
+    import plotly.graph_objects as go
     fig_scatter = go.Figure()
     colors = ["blue", "red", "green", "purple", "orange"]
     if len(df["sample"].unique()) > len(colors):
@@ -279,6 +287,7 @@ def scatter_motifs(df):
     """
     Make a scatter plot of CTs vs CCCTCTs, colored by read length, with shape indicating the sample
     """
+    import plotly.graph_objects as go
     df = df.sort_values("length")
     fig_scatter = go.Figure()
     min_length = df["length"].min()
@@ -338,6 +347,7 @@ def plot_genotypes(genotypes):
     """
     Make a scatter plot showing for each sample the CT dimer count vs the CCCTCT hexamer count
     """
+    import plotly.graph_objects as go
     fig_scatter = go.Figure(
         go.Scatter(
             x=[genotype.ct_dimer_count for genotype in genotypes],
@@ -380,6 +390,8 @@ def plot_violins(df, genotypes, min_ct_count=100):
     Make a violin plot, with on the y-axis the samples and on the x-axis the CT count of the reads
     Samples on the y-axis should be sorted by the consensus ct_dimer_count
     """
+    import plotly.graph_objects as go
+    import plotly.express as px
     #df = df[df["CT count"] > min_ct_count]
     genotypes = [genotype for genotype in genotypes if genotype.ct_dimer_count > min_ct_count]
     sorted_genotypes = sorted(genotypes, key=lambda g: g.ct_dimer_count)
