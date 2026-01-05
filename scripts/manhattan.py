@@ -111,6 +111,8 @@ def main():
     
     with open(args.output, "w") as f:
         f.write(fig.to_html(include_plotlyjs="cdn"))
+    # Save the figure as a vector image as well
+    fig.write_image(args.output.replace(".html", ".svg"))
 
 
 def load_data(input_file):
@@ -234,7 +236,7 @@ def get_args():
         "--input",
         type=str,
         help="Path to the input file",
-        default="~/local/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
+        default="~/Downloads/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
     )
     parser.add_argument(
         "-o",
