@@ -220,7 +220,7 @@ def plot_heatmap(df, args, max_missing=0.1):
     title = (
         f"Repeat composition (individual reads)"
         if args.somatic
-        else "Repeat consensus sequence composition"
+        else "Repeat composition"
     )
 
     fig.update_layout(
@@ -238,6 +238,8 @@ def plot_heatmap(df, args, max_missing=0.1):
     plotname = args.output if args.output else f"kmer{args.kmer}-heatmap.html"
     with open(plotname, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
+    if args.svg:
+        fig.write_image(plotname.replace('.html', '.svg'))
 
 
 def get_args():
@@ -264,6 +266,7 @@ def get_args():
         action="store_true",
     )
     parser.add_argument("--sampleinfo", help="excel file with sample information")
+    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
     return parser.parse_args()
 
 

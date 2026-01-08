@@ -141,11 +141,14 @@ def main():
             
             with open(output_file, "w") as output:
                 for locus in batch_loci:
-                    title = (
-                        f"Consensus repeat length vs %CT at {locus}"
-                        if df["variant"].nunique() > 1
-                        else "Consensus repeat length vs %CT"
-                    )
+                    if args.title is not None:
+                        title = args.title
+                    else:
+                        title = (
+                            f"Consensus repeat length vs %CT at {locus}"
+                            if df["variant"].nunique() > 1
+                            else "Consensus repeat length vs %CT"
+                        )
                     fig, upper_limit = make_scatter_plot(
                         df.loc[df["variant"] == locus], title, args
                     )
@@ -189,11 +192,14 @@ def main():
         # Original behavior for 20 or fewer loci
         with open(args.output, "w") as output:
             for locus in unique_loci:
-                title = (
-                    f"Consensus repeat length vs %CT at {locus}"
-                    if df["variant"].nunique() > 1
-                    else "Consensus repeat length vs %CT"
-                )
+                if args.title is not None:
+                    title = args.title
+                else:
+                    title = (
+                        f"Consensus repeat length vs %CT at {locus}"
+                        if df["variant"].nunique() > 1
+                        else "Consensus repeat length vs %CT"
+                    )
                 fig, upper_limit = make_scatter_plot(
                     df.loc[df["variant"] == locus], title, args
                 )
@@ -203,6 +209,9 @@ def main():
                     include_plotlyjs="cdn",
                     full_html=True if output.tell() == 0 else False,
                 )
+                if args.svg:
+                    svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}.svg')
+                    fig.write_image(svg_file)
                 if args.haplotypes:
                     fig, _ = make_scatter_plot(
                         df.loc[
@@ -217,6 +226,9 @@ def main():
                         include_plotlyjs="cdn",
                         full_html=False,
                     )
+                    if args.svg:
+                        svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapA.svg')
+                        fig.write_image(svg_file)
                     fig, _ = make_scatter_plot(
                         df.loc[
                             (df["variant"] == locus) & (df["haplotype"] == "minor")
@@ -230,6 +242,9 @@ def main():
                         include_plotlyjs="cdn",
                         full_html=False,
                     )
+                    if args.svg:
+                        svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapB.svg')
+                        fig.write_image(svg_file)
 
 
 def count_ct_by_subtracting_motifs(seq):
@@ -512,6 +527,8 @@ def get_args():
         help="Place legend outside of the plot area",
         action="store_true",
     )
+    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--title", help="Title for the plot (optional)")
     return parser.parse_args()
 
 

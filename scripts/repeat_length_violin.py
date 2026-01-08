@@ -96,7 +96,7 @@ def main():
     with open(args.output, "w") as output:
         for locus in df["variant"].unique():
             # Use custom title if provided, otherwise use the default logic
-            if args.title:
+            if args.title is not None:
                 title = args.title
             else:
                 title = (
@@ -112,6 +112,8 @@ def main():
                 include_plotlyjs="cdn",
                 full_html=True if output.tell() == 0 else False,
             )
+            if args.svg:
+                fig.write_image(f"{args.output.replace('.html', '')}_{locus.replace(':', '_')}.svg")
 
 
 def make_violin_plot(df, title, args):
@@ -142,7 +144,10 @@ def make_violin_plot(df, title, args):
     fig.update_traces(marker=dict(size=4), jitter=1.0)
     fig.update_layout(plot_bgcolor="white")
     fig.update_yaxes(title_text="Consensus repeat length")
-    fig.update_xaxes(title_text="Phenotype")
+    if args.no_xaxis_title:
+        fig.update_xaxes(title_text="")
+    else:
+        fig.update_xaxes(title_text="Phenotype")
     fig.update_layout(
         font=dict(size=18),
         legend=dict(title="Sample", itemsizing="constant"),
@@ -217,6 +222,8 @@ def get_args():
     parser.add_argument(
         "--title", help="Custom title for the plot (default: 'Repeat length' or 'Repeat length CHROM:POS')"
     )
+    parser.add_argument("--no_xaxis_title", help="Do not write an xaxis title", action="store_true")
+    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
     return parser.parse_args()
 
 

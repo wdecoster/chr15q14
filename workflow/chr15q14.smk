@@ -160,15 +160,15 @@ rule all:
             os.path.join(outdir, "plots", "{target}/length_plot_violin.html"),
             target=targets,
         ),
-        astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"), target=targets),
+        astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.svg"), target=targets),
         astronaut_hapA=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapA.html"), target=targets),
         astronaut_hapB=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapB.html"), target=targets),
-        astronaut_relatives=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.html"), target=targets),
+        astronaut_relatives=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.svg"), target=targets),
         astronaut_multiple_samples=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"), target=targets),
         kmer_plot=expand(os.path.join(outdir, "plots/{target}/kmer_plot.html"), target=targets),
         ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
         ct_dimer_strip=expand(os.path.join(outdir, "plots/{target}/ct_dimer_strip.html"), target=targets),
-        combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
+        #combined_inquistr=os.path.join(outdir, "inquistr/representative_cohort.inq"),
         #corr_with_age = expand(os.path.join(outdir, "plots/{target}/correlations-with-age.html"), target=targets),
         corr_with_age_only_patients = expand(os.path.join(outdir, "plots/{target}/correlations-with-age_pat_only.html"), target=targets),
         copy_number_plot=os.path.join(outdir, "plots/copy_number.html"),
@@ -218,7 +218,7 @@ rule somatic_astronaut:
     log:
         os.path.join(outdir, "logs/workflows/{target}/somatic_astronaut_{id}.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -250,7 +250,14 @@ rule somatic_length_plot:
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        """python {params.script} -i {input} -o {output} --title "Repeat length per read" --minlen {params.minlen} --sampleinfo {params.sampleinfo} 2> {log}"""
+        """python {params.script} \
+        -i {input} \
+        -o {output} \
+        --title "Repeat length per read" \
+        --minlen {params.minlen} \
+        --sampleinfo {params.sampleinfo} \
+        --svg 2> {log}
+        """
 
 
 rule length_plot_strip:
@@ -273,7 +280,15 @@ rule length_plot_strip:
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        "python {params.script} --line {params.show_line} -o {output} -g {params.sample_info} {input} 2> {log}"
+        """
+        python {params.script} \
+        --line {params.show_line} \
+        -o {output} \
+        -g {params.sample_info} \
+        --title "" \
+        --no_xaxis_title \
+        --svg {input} 2> {log}
+        """
 
 
 rule length_plot_delT:
@@ -341,7 +356,7 @@ rule somatic_variation_plot:
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        "python {params.script} -o {output} --sample_info {params.sample_info} {input} 2> {log}"
+        "python {params.script} -o {output} --sample_info {params.sample_info} {input} --svg 2> {log}"
 
 # rule length_plot_duplicates:
 #     input:
@@ -394,6 +409,7 @@ rule kmer_plot:
         --counts {output.counts} \
         --minlength {params.minlength} \
         --sampleinfo {params.sampleinfo} \
+        --svg \
         {input} 2> {log}"""
 
 
@@ -431,10 +447,11 @@ rule ct_vs_length:
         --overview {output.overview} \
         --sampleinfo {params.sample_info} \
         --copy_number {input.copy_number} \
-        --haplotypes \
         --xline {params.xline} \
         --yline {params.yline} \
         --arrow {params.arrows} \
+        --title "" \
+        --svg \
         {input.vcfs} 2> {log} 
         """
 
@@ -454,7 +471,7 @@ rule ct_dimer_strip:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
-        python {params.script} -i {input} -o {output} 2> {log}
+        python {params.script} -i {input} -o {output} --svg --title "" 2> {log}
         """
 
 rule correlate_with_age:
@@ -495,7 +512,11 @@ rule correlate_with_age_only_patients:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
-        python {params.script} {input} --pat_only --sampleinfo {params.sample_info} > {output} 2> {log}
+        python {params.script} {input} \
+        --pat_only \
+        --sampleinfo {params.sample_info} \
+        --output {output} \
+        --svg 2> {log}
         """
 
 rule table_of_carriers:
@@ -556,11 +577,11 @@ rule astronaut_all:
     input:
         os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
     output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_all.html"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all.svg"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize=8,
         minsize = 100,
@@ -573,10 +594,11 @@ rule astronaut_all:
         -m {params.minsize} \
         -o {output} \
         --size {params.dotsize} \
-        --hide-labels --longest_only --publication \
-        --title "Repeat composition sequence" \
+        --hide-labels --longest_only --minimal \
+        --title "" \
         --sampleinfo {params.sample_info} \
         --height 1200 \
+        --width 1600 \
         --table {input} 2> {log}
         """
 
@@ -643,11 +665,11 @@ rule astronaut_relatives:
             id=crams.loc[crams["collection"] == "relatives", "individual"], # this corresponds to the individuals with relatives in the cohort
         ),
     output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.html"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.svg"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_relatives.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
+        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
         sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         relative_names=fix_names_relatives,
         dotsize = 8,
@@ -666,6 +688,7 @@ rule astronaut_relatives:
         {input} \
         --legend_corner topright \
         -m {params.minsize} \
+        --width 1600 \
         -o {output} --longest_only --publication --title "Repeat composition sequence in relatives" --sampleinfo {params.sample_info} 2> {log}
         """
 
@@ -731,7 +754,7 @@ rule make_combined_inquistr_file:
     log:
         os.path.join(outdir, "logs/workflows/combine_inquistr.log")
     params:
-        inquistr = "/home/wdecoster/repositories/inquiSTR/target/release/inquiSTR"
+        inquistr = "/home/wdecoster/repositories/inquiSTR/target/x86_64-unknown-linux-musl/release/inquiSTR"
     shell:
         "{params.inquistr} combine {input} > {output} 2> {log}"
 

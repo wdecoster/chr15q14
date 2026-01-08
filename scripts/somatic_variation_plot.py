@@ -125,6 +125,8 @@ def main():
     # make the subplot titles larger, which turn out to be annotations
     fig.update_annotations(font_size=32)
     fig.write_html(args.output)
+    if args.svg:
+        fig.write_image(args.output.replace('.html', '.svg'))
 
 
 def get_args():
@@ -141,6 +143,7 @@ def get_args():
         type=int,
     )
     parser.add_argument("--sample_info", help="TSV file with sample information")
+    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
     return parser.parse_args()
 
 

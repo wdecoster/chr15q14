@@ -2,10 +2,12 @@ import plotly.express as px
 import pandas as pd
 from argparse import ArgumentParser
 import statsmodels.api as sm
+import sys
 
 try:
     from privacy import correlate_with_age_to_exclude
 except ImportError:
+    sys.stderr.write("Failed to import from privacy module.\n")
     correlate_with_age_to_exclude = []
 
 
@@ -40,6 +42,7 @@ def main():
         df = df[df["group"] == "aFTLD-U"]
     # only keep the aFTLD-U and in-house non-aFTLD-U samples, which have an age at death and a haplotype, and removing problematic samples
     # problematic because of (respectively): no repeat, weird repeat, cerebellum sample, cerebellum sample
+    sys.stderr.write(f"Found {len(correlate_with_age_to_exclude)} samples to exclude\n")
     df = df[
         (df["group"].isin(["aFTLD-U", "in-house non-aFTLD-U"]))
         & (df["AGEATDEATH"] > 0)
@@ -53,11 +56,17 @@ def main():
         "in-house non-aFTLD-U": (0.80, 0.70),
     }
 
-    make_plot(df, args, annotation_location, variable="AGEATDEATH")
-    make_plot(df, args, annotation_location, variable="AGEATONSET")
+    if args.output:
+        with open(args.output, "w") as output:
+            make_plot(df, args, annotation_location, variable="AGEATDEATH", output_file=output)
+            make_plot(df, args, annotation_location, variable="AGEATONSET", output_file=output)
+    else:
+        # Print to stdout for backward compatibility
+        make_plot(df, args, annotation_location, variable="AGEATDEATH", output_file=None)
+        make_plot(df, args, annotation_location, variable="AGEATONSET", output_file=None)
 
 
-def make_plot(df, args, annotation_location, variable):
+def make_plot(df, args, annotation_location, variable, output_file=None):
     fig = px.scatter(
         df,
         x="CT_dimer_count",
@@ -134,25 +143,39 @@ def make_plot(df, args, annotation_location, variable):
             text=OLS(
                 df[df["group"].isin(["in-house non-aFTLD-U"])],
                 "CT_dimer_count",
+                variable,
             ).__str__(),
             align="left",
             showarrow=False,
             font=dict(color="black", size=18),
         )
-    print(
-        fig.to_html(
-            include_plotlyjs="cdn",
-            config={
-                "toImageButtonOptions": {
-                    "format": "png",  # one of png, svg, jpeg, webp
-                    "filename": "",
-                    "height": 800,
-                    "width": 800,
-                    "scale": 5,  # Multiply title/legend/axis/canvas sizes by this factor
-                }
-            },
-        )
+    
+    html_content = fig.to_html(
+        include_plotlyjs="cdn",
+        config={
+            "toImageButtonOptions": {
+                "format": "png",
+                "filename": "",
+                "height": 800,
+                "width": 800,
+                "scale": 5,
+            }
+        },
+        full_html=True if (output_file is None or output_file.tell() == 0) else False,
     )
+    
+    if output_file is not None:
+        # Write to file handle
+        output_file.write(html_content)
+        
+        if args.svg:
+            # Create separate SVG files with appropriate suffix
+            suffix = "_death.svg" if variable == "AGEATDEATH" else "_onset.svg"
+            svg_file = args.output.replace('.html', '') + suffix
+            fig.write_image(svg_file)
+    else:
+        # Print to stdout for backward compatibility
+        print(html_content)
 
 
 def get_args():
@@ -160,6 +183,8 @@ def get_args():
     parser.add_argument("input", help="Path to the input table")
     parser.add_argument("--sampleinfo", help="Path to Individuals.xlsx")
     parser.add_argument("--pat_only", help="Only include patients", action="store_true")
+    parser.add_argument("-o", "--output", help="Output HTML filename (both plots will be written to this file)")
+    parser.add_argument("--svg", help="Additionally create svg output, only works with --output", action="store_true")
     return parser.parse_args()
 
 

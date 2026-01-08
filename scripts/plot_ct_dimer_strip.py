@@ -22,7 +22,7 @@ def main():
         y="Haplotype",
         color="group",
         hover_data=["name"],
-        title="CT dimer count",
+        title=args.title if args.title is not None else "CT dimer count",
         labels={"CT_dimer_count": "Number of CT dimers"},
         color_discrete_map={
             "aFTLD-U": "red",
@@ -69,12 +69,16 @@ def main():
 
     with open(args.output, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
+    if args.svg:
+        fig.write_image(args.output.replace('.html', '.svg'))
 
 
 def get_args():
     parser = ArgumentParser("Correlate age with variables related to the repeat")
     parser.add_argument("-i", "--input", help="Path to the input table", required=True)
     parser.add_argument("-o", "--output", default="ct-dimer-strip.html", help="Path to the output html file")
+    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--title", help="title for the plot (optional)")
     return parser.parse_args()
 
 
