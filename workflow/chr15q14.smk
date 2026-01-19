@@ -182,8 +182,7 @@ rule all:
         shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
         shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
         phasius = os.path.join(outdir, "phasius.html"),
-
-
+        astronaut_narrow = os.path.join(outdir, "plots/golga8a_unphased/aSTRonaut_all_narrow.svg"),
 
 
 rule strdust:
@@ -599,6 +598,35 @@ rule astronaut_all:
         --sampleinfo {params.sample_info} \
         --height 1200 \
         --width 1600 \
+        --table {input} 2> {log}
+        """
+
+rule astronaut_all_narrow:
+    input:
+        os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
+    output:
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all_narrow.svg"),
+    log:
+        os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all_narrow.log"),
+    params:
+        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        dotsize=8,
+        minsize = 100,
+    conda:
+        os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
+    shell:
+        """
+        python {params.script} \
+        --motifs CT,CCTT,CTTT,CCCT,CCCTCT,CCCCT,CCTTT,CCCCCC \
+        -m {params.minsize} \
+        -o {output} \
+        --size {params.dotsize} \
+        --hide-labels --longest_only --minimal \
+        --title "" \
+        --sampleinfo {params.sample_info} \
+        --height 1000 \
+        --width 800 \
         --table {input} 2> {log}
         """
 
