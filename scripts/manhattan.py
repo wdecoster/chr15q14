@@ -80,11 +80,12 @@ def downsample_manhattan_data(df, threshold=0.05, downsample_factor=100):
 def main():
     args = get_args()
     df = load_data(args.input)
+    df = filter_data(df)
     
     # Save summary file BEFORE downsampling (using original full dataset)
     if args.save_summary:
         print(f"Saving summary file with {len(df):,} variants...")
-        df[["CHROM", "POS", "P", "REF", "ALT", "OR"]].sort_values(
+        df[["CHROM", "POS", "P", "REF", "ALT", "beta"]].sort_values(
             by=["CHROM", "POS"]
         ).to_csv(args.save_summary, sep="\t", index=False)
     
@@ -118,9 +119,17 @@ def main():
 def load_data(input_file):
     df = pd.read_csv(
         input_file,
-        sep="\t",
+        sep=",",
         compression="gzip" if input_file.endswith('.gz') else None,
-        usecols=["CHROM", "POS", "P", "REF", "ALT", "OR"],
+        usecols=["chrom", "genpos", "pval", "allele0", "allele1", "beta", "VQSR", "HWE.ctrl", "batch.FEpval.FUS", "ctrl_F_MISS", "case_F_MISS", "batch.pval.ctrl", "a1freq_cases", "a1freq_controls"],
+    ).rename(
+        columns={
+            "chrom": "CHROM",
+            "genpos": "POS",
+            "pval": "P",
+            "allele0": "REF",
+            "allele1": "ALT",
+        }
     )
     df["-log10P"] = -1 * np.log10(df["P"])
     df["newPOS"] = df.apply(
@@ -129,10 +138,61 @@ def load_data(input_file):
         axis=1,
     )
     df["CHROM_str"] = df["CHROM"].astype(str)
-    
+
     # Sort by P-value for downsampling
     df = df.sort_values(by="P").reset_index(drop=True)
     return df
+
+
+def filter_data(
+    df,
+    vqsr_values=["PASS"],
+    hwe_ctrl_cutoff=1e-6,
+    batch_fepval_fus_cutoff=0.01,
+    ctrl_f_miss_cutoff=0.1,
+    case_f_miss_cutoff=0.1,
+    batch_pval_ctrl_cutoff=0.01,
+    allele_freq_cutoff=0.01,
+):
+    """Filter the data based on the specified criteria"""
+    filtered_df = df.copy()
+
+    # Apply VQSR filter (categorical)
+    if vqsr_values and len(vqsr_values) > 0:
+        filtered_df = filtered_df[filtered_df["VQSR"].isin(vqsr_values)]
+
+    # Apply HWE.ctrl filter (numeric, below cutoff)
+    if hwe_ctrl_cutoff is not None:
+        filtered_df = filtered_df[filtered_df["HWE.ctrl"] > hwe_ctrl_cutoff]
+
+    # Apply batch.FEpval.FUS filter (numeric, below cutoff)
+    if batch_fepval_fus_cutoff is not None:
+        filtered_df = filtered_df[
+            filtered_df["batch.FEpval.FUS"] > batch_fepval_fus_cutoff
+        ]
+
+    # Apply ctrl_F_MISS filter (numeric, above cutoff)
+    if ctrl_f_miss_cutoff is not None:
+        filtered_df = filtered_df[filtered_df["ctrl_F_MISS"] < ctrl_f_miss_cutoff]
+
+    # Apply case_F_MISS filter (numeric, above cutoff)
+    if case_f_miss_cutoff is not None:
+        filtered_df = filtered_df[filtered_df["case_F_MISS"] < case_f_miss_cutoff]
+
+    # Apply batch.pval.ctrl filter (numeric, below cutoff)
+    if batch_pval_ctrl_cutoff is not None:
+        filtered_df = filtered_df[
+            filtered_df["batch.pval.ctrl"] > batch_pval_ctrl_cutoff
+        ]
+
+    # Apply allele frequency filter - keep variants with frequency above cutoff in EITHER cases OR controls
+    if allele_freq_cutoff is not None:
+        filtered_df = filtered_df[
+            (filtered_df["a1freq_cases"] > allele_freq_cutoff)
+            | (filtered_df["a1freq_controls"] > allele_freq_cutoff)
+        ]
+
+    return filtered_df
 
 
 def load_genes(df):
@@ -232,11 +292,12 @@ def plot(df, genes):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("-i",
+    parser.add_argument(
+        "-i",
         "--input",
         type=str,
         help="Path to the input file",
-        default="~/Downloads/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
+        default="~/Downloads/FTLD-FUS_allCTRL.CC.regenie.csv.gz",
     )
     parser.add_argument(
         "-o",
