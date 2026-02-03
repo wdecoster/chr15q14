@@ -209,9 +209,9 @@ def main():
                     include_plotlyjs="cdn",
                     full_html=True if output.tell() == 0 else False,
                 )
-                if args.svg:
-                    svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}.svg')
-                    fig.write_image(svg_file)
+                if args.pdf:
+                    pdf_file = args.output.replace('.html', f'_{locus.replace(":", "_")}.pdf')
+                    fig.write_image(pdf_file)
                 if args.haplotypes:
                     fig, _ = make_scatter_plot(
                         df.loc[
@@ -226,9 +226,9 @@ def main():
                         include_plotlyjs="cdn",
                         full_html=False,
                     )
-                    if args.svg:
-                        svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapA.svg')
-                        fig.write_image(svg_file)
+                    if args.pdf:
+                        pdf_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapA.pdf')
+                        fig.write_image(pdf_file)
                     fig, _ = make_scatter_plot(
                         df.loc[
                             (df["variant"] == locus) & (df["haplotype"] == "minor")
@@ -242,9 +242,9 @@ def main():
                         include_plotlyjs="cdn",
                         full_html=False,
                     )
-                    if args.svg:
-                        svg_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapB.svg')
-                        fig.write_image(svg_file)
+                    if args.pdf:
+                        pdf_file = args.output.replace('.html', f'_{locus.replace(":", "_")}_hapB.pdf')
+                        fig.write_image(pdf_file)
 
 
 def count_ct_by_subtracting_motifs(seq):
@@ -527,7 +527,7 @@ def get_args():
         help="Place legend outside of the plot area",
         action="store_true",
     )
-    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--pdf", help="Additionally create pdf output", action="store_true")
     parser.add_argument("--title", help="Title for the plot (optional)")
     return parser.parse_args()
 

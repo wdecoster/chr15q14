@@ -160,10 +160,10 @@ rule all:
             os.path.join(outdir, "plots", "{target}/length_plot_violin.html"),
             target=targets,
         ),
-        astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.svg"), target=targets),
+        astronaut_all=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_all.pdf"), target=targets),
         astronaut_hapA=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapA.html"), target=targets),
         astronaut_hapB=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_hapB.html"), target=targets),
-        astronaut_relatives=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.svg"), target=targets),
+        astronaut_relatives=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.pdf"), target=targets),
         astronaut_multiple_samples=expand(os.path.join(outdir, "plots/{target}/aSTRonaut_multiple_samples.html"), target=targets),
         kmer_plot=expand(os.path.join(outdir, "plots/{target}/kmer_plot.html"), target=targets),
         ct_vs_length=expand(os.path.join(outdir, "plots/{target}/ct_vs_length.html"), target=targets),
@@ -182,7 +182,7 @@ rule all:
         shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
         shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
         phasius = os.path.join(outdir, "phasius.html"),
-        astronaut_narrow = os.path.join(outdir, "plots/golga8a_unphased/aSTRonaut_all_narrow.svg"),
+        astronaut_narrow = os.path.join(outdir, "plots/golga8a_unphased/aSTRonaut_all_narrow.pdf"),
 
 
 rule strdust:
@@ -255,7 +255,7 @@ rule somatic_length_plot:
         --title "Repeat length per read" \
         --minlen {params.minlen} \
         --sampleinfo {params.sampleinfo} \
-        --svg 2> {log}
+        --pdf 2> {log}
         """
 
 
@@ -286,7 +286,7 @@ rule length_plot_strip:
         -g {params.sample_info} \
         --title "" \
         --no_xaxis_title \
-        --svg {input} 2> {log}
+        --pdf {input} 2> {log}
         """
 
 
@@ -355,7 +355,7 @@ rule somatic_variation_plot:
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
-        "python {params.script} -o {output} --sample_info {params.sample_info} {input} --svg 2> {log}"
+        "python {params.script} -o {output} --sample_info {params.sample_info} {input} --pdf 2> {log}"
 
 # rule length_plot_duplicates:
 #     input:
@@ -408,7 +408,7 @@ rule kmer_plot:
         --counts {output.counts} \
         --minlength {params.minlength} \
         --sampleinfo {params.sampleinfo} \
-        --svg \
+        --pdf \
         {input} 2> {log}"""
 
 
@@ -450,7 +450,7 @@ rule ct_vs_length:
         --yline {params.yline} \
         --arrow {params.arrows} \
         --title "" \
-        --svg \
+        --pdf \
         {input.vcfs} 2> {log} 
         """
 
@@ -470,7 +470,7 @@ rule ct_dimer_strip:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
         """
-        python {params.script} -i {input} -o {output} --svg --title "" 2> {log}
+        python {params.script} -i {input} -o {output} --pdf --title "" 2> {log}
         """
 
 rule correlate_with_age:
@@ -515,7 +515,7 @@ rule correlate_with_age_only_patients:
         --pat_only \
         --sampleinfo {params.sample_info} \
         --output {output} \
-        --svg 2> {log}
+        --pdf 2> {log}
         """
 
 rule table_of_carriers:
@@ -576,7 +576,7 @@ rule astronaut_all:
     input:
         os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
     output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_all.svg"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all.pdf"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
     params:
@@ -605,7 +605,7 @@ rule astronaut_all_narrow:
     input:
         os.path.join(outdir, "temp/analysis_overview_{target}_all.tsv"),
     output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_all_narrow.svg"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_all_narrow.pdf"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all_narrow.log"),
     params:
@@ -693,7 +693,7 @@ rule astronaut_relatives:
             id=crams.loc[crams["collection"] == "relatives", "individual"], # this corresponds to the individuals with relatives in the cohort
         ),
     output:
-        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.svg"),
+        os.path.join(outdir, "plots/{target}/aSTRonaut_relatives.pdf"),
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_relatives.log"),
     params:

@@ -168,11 +168,11 @@ def make_plot(df, args, annotation_location, variable, output_file=None):
         # Write to file handle
         output_file.write(html_content)
         
-        if args.svg:
-            # Create separate SVG files with appropriate suffix
-            suffix = "_death.svg" if variable == "AGEATDEATH" else "_onset.svg"
-            svg_file = args.output.replace('.html', '') + suffix
-            fig.write_image(svg_file)
+        if args.pdf:
+            # Create separate PDF files with appropriate suffix
+            suffix = "_death.pdf" if variable == "AGEATDEATH" else "_onset.pdf"
+            pdf_file = args.output.replace('.html', '') + suffix
+            fig.write_image(pdf_file)
     else:
         # Print to stdout for backward compatibility
         print(html_content)
@@ -184,7 +184,7 @@ def get_args():
     parser.add_argument("--sampleinfo", help="Path to Individuals.xlsx")
     parser.add_argument("--pat_only", help="Only include patients", action="store_true")
     parser.add_argument("-o", "--output", help="Output HTML filename (both plots will be written to this file)")
-    parser.add_argument("--svg", help="Additionally create svg output, only works with --output", action="store_true")
+    parser.add_argument("--pdf", help="Additionally create pdf output, only works with --output", action="store_true")
     return parser.parse_args()
 
 

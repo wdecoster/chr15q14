@@ -69,15 +69,15 @@ def main():
 
     with open(args.output, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
-    if args.svg:
-        fig.write_image(args.output.replace('.html', '.svg'))
+    if args.pdf:
+        fig.write_image(args.output.replace('.html', '.pdf'))
 
 
 def get_args():
     parser = ArgumentParser("Correlate age with variables related to the repeat")
     parser.add_argument("-i", "--input", help="Path to the input table", required=True)
     parser.add_argument("-o", "--output", default="ct-dimer-strip.html", help="Path to the output html file")
-    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--pdf", help="Additionally create pdf output", action="store_true")
     parser.add_argument("--title", help="title for the plot (optional)")
     return parser.parse_args()
 
