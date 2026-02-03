@@ -142,8 +142,8 @@ def main():
                 )
     with open(args.output, "w") as output:
         output.write(fig.to_html(include_plotlyjs="cdn"))
-    if args.svg:
-        fig.write_image(args.output.replace('.html', '.svg'))
+    if args.pdf:
+        fig.write_image(args.output.replace('.html', '.pdf'))
 
 
 def get_args():
@@ -172,7 +172,7 @@ def get_args():
     parser.add_argument(
         "--title", help="Title of the plot", default="Repeat length per sequenced read"
     )
-    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--pdf", help="Additionally create pdf output", action="store_true")
     return parser.parse_args()
 
 

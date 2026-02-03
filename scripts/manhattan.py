@@ -112,7 +112,7 @@ def main():
     with open(args.output, "w") as f:
         f.write(fig.to_html(include_plotlyjs="cdn"))
     # Save the figure as a vector image as well
-    fig.write_image(args.output.replace(".html", ".svg"))
+    fig.write_image(args.output.replace(".html", ".pdf"))
 
 
 def load_data(input_file):

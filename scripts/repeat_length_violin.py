@@ -112,8 +112,8 @@ def main():
                 include_plotlyjs="cdn",
                 full_html=True if output.tell() == 0 else False,
             )
-            if args.svg:
-                fig.write_image(f"{args.output.replace('.html', '')}_{locus.replace(':', '_')}.svg")
+            if args.pdf:
+                fig.write_image(f"{args.output.replace('.html', '')}_{locus.replace(':', '_')}.pdf")
 
 
 def make_violin_plot(df, title, args):
@@ -223,7 +223,7 @@ def get_args():
         "--title", help="Custom title for the plot (default: 'Repeat length' or 'Repeat length CHROM:POS')"
     )
     parser.add_argument("--no_xaxis_title", help="Do not write an xaxis title", action="store_true")
-    parser.add_argument("--svg", help="Additionally create svg output", action="store_true")
+    parser.add_argument("--pdf", help="Additionally create pdf output", action="store_true")
     return parser.parse_args()
 
 
