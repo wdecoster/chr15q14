@@ -192,7 +192,9 @@ def plot_heatmap(df, args, max_missing=0.1):
                 title="Fraction",
                 nticks=5,
                 tickmode="auto",
-                len=0.75
+                len=0.75,
+                ticks="outside",
+                ticklen=5,
             ),
         ),
         row=1,

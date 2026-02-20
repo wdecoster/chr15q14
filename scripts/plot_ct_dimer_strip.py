@@ -56,6 +56,8 @@ def main():
         linewidth=2,
         linecolor="black",
         mirror=True,
+        ticks="outside",
+        ticklen=5,
     )
 
     fig.update_yaxes(

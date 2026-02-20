@@ -364,6 +364,8 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         mirror=True,
         range=[0, 1],
         title_text="%CT",
+        ticks="outside",
+        ticklen=5,
     )
 
     fig.update_yaxes(
@@ -373,6 +375,8 @@ def make_scatter_plot(df, title, args, upper_limit=None):
         mirror=True,
         range=[0, upper_limit],
         title_text="Repeat length",
+        ticks="outside",
+        ticklen=5,
     )
 
     # I don't like how the legend now looks, with both the group and haplotype in the same legend, resulting in 9 items
