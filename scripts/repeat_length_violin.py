@@ -162,6 +162,8 @@ def make_violin_plot(df, title, args):
         linewidth=2,
         linecolor="black",
         range=[0, upper_limit],
+        ticks="outside",
+        ticklen=10,
     )
     # reduce the horizontal space
     fig.update_layout(width=400, height=800)

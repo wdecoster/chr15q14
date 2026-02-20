@@ -285,6 +285,8 @@ def plot(df, genes):
         yaxis=dict(
             tickfont=dict(size=20),
             title=dict(text="-log10(P)", font=dict(size=22)),
+            ticks="outside",
+            ticklen=10,
         ),
     )
     return fig

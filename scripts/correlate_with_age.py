@@ -108,6 +108,8 @@ def make_plot(df, args, annotation_location, variable, output_file=None):
         linewidth=2,
         linecolor="black",
         mirror=True,
+        ticks="outside",
+        ticklen=5,
     )
 
     fig.update_yaxes(
@@ -115,6 +117,8 @@ def make_plot(df, args, annotation_location, variable, output_file=None):
         linewidth=2,
         linecolor="black",
         mirror=True,
+        ticks="outside",
+        ticklen=5,
     )
 
     # add OLS annotation for patients and controls
@@ -149,7 +153,7 @@ def make_plot(df, args, annotation_location, variable, output_file=None):
             showarrow=False,
             font=dict(color="black", size=18),
         )
-    
+
     html_content = fig.to_html(
         include_plotlyjs="cdn",
         config={
@@ -163,11 +167,11 @@ def make_plot(df, args, annotation_location, variable, output_file=None):
         },
         full_html=True if (output_file is None or output_file.tell() == 0) else False,
     )
-    
+
     if output_file is not None:
         # Write to file handle
         output_file.write(html_content)
-        
+
         if args.pdf:
             # Create separate PDF files with appropriate suffix
             suffix = "_death.pdf" if variable == "AGEATDEATH" else "_onset.pdf"

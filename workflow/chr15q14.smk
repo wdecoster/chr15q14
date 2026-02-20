@@ -4,10 +4,10 @@ import pandas as pd
 from os.path import basename
 
 outdir = "/results/rr/study/hg38s/study252-P200_analysis/workflow_results/chr15q14/"
-ref = "/home/wdecoster/GRCh38_recommended/GRCh38.fa"
+ref = "/home/AD/wdecoster/GRCh38_recommended/GRCh38.fa"
 
 # load the dataframe from the excel sheet
-crams = pd.read_excel("/home/wdecoster/chr15q14/full_cohort_for_paper.xlsx")
+crams = pd.read_excel("/home/AD/wdecoster/chr15q14/full_cohort_for_paper.xlsx")
 # remove individuals that have "inclusion" set to "no"
 # currently, also remove samples that are not_brain (corresponding to individuals for which multiple tissues were sequenced or no brain available) are dropped
 # but this still has to be fixed later, to get those samples back in for specific analyses
@@ -16,7 +16,7 @@ crams = crams.loc[
     & (~crams["collection"].isin(["not_brain", "other_brain"]))
 ]
 
-local_cram_path = "/home/wdecoster/p200/study169-p200/good_crams/"
+local_cram_path = "/results/rr/study/hg38s/study169-p200/good_crams/"
 crams["path-to-cram"] = crams["path-to-cram"].astype(str)
 crams["path-to-cram"] = crams.apply(
     lambda x: (
@@ -34,7 +34,7 @@ for path in crams["path-to-cram"]:
 
 # dump the dataframe to a tsv file, as it is used in the workflow
 crams["name"] = crams["individual"]
-crams.to_csv("/home/wdecoster/chr15q14/full_cohort_for_paper.tsv", sep="\t", index=False)
+crams.to_csv("/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv", sep="\t", index=False)
 
 def get_duplicates():
     other_tissues = crams.loc[crams["collection"] == "other_tissue_duplicate", "individual"].tolist()
@@ -177,11 +177,11 @@ rule all:
         somatic_variation = expand(os.path.join(outdir, "plots/{target}/somatic_variation_plot.html"), target=targets),
         sex_check = os.path.join(outdir, "sex_check.html"),
         precision_recall = expand(os.path.join(outdir, "plots/{target}/precision_recall.txt"), target=targets),
-        sniffles = os.path.join(outdir, "sniffles/sniffles-all-500kb.vcf.gz"),
-        deepvariant = os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
-        shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
-        shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
-        phasius = os.path.join(outdir, "phasius.html"),
+        #sniffles = os.path.join(outdir, "sniffles/sniffles-all-500kb.vcf.gz"),
+        # deepvariant = os.path.join(outdir, "deepvariant", "deepvariant_all.vcf.gz"),
+        # shared_svs = os.path.join(outdir, "sniffles/shared_svs.tsv"),
+        # shared_snvs = os.path.join(outdir, "deepvariant/shared_snvs.tsv"),
+        # phasius = os.path.join(outdir, "phasius.html"),
         astronaut_narrow = os.path.join(outdir, "plots/golga8a_unphased/aSTRonaut_all_narrow.pdf"),
 
 
@@ -194,7 +194,7 @@ rule strdust:
         cram=get_cram, # using this as a param to avoid checking for existence of the cram file, as remote files are not considered present, and presence of local files is already checked
         ref=ref,
         locus=get_coords,
-        binary="/home/wdecoster/repositories/STRdust/target/release/STRdust",
+        binary="/home/AD/wdecoster/repositories/STRdust/target/release/STRdust",
         method=get_method,
         support=2,
     conda:
@@ -217,7 +217,7 @@ rule somatic_astronaut:
     log:
         os.path.join(outdir, "logs/workflows/{target}/somatic_astronaut_{id}.log"),
     params:
-        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
+        script="/home/AD/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -245,7 +245,7 @@ rule somatic_length_plot:
             "scripts/plot_repeat_lengths_from_vcf.py",
         ),
         minlen=100,
-        sampleinfo="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sampleinfo="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -274,7 +274,7 @@ rule length_plot_strip:
             os.path.dirname(workflow.basedir),
             "scripts/repeat_length_violin.py",
         ),
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         show_line = 100,
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
@@ -306,7 +306,7 @@ rule length_plot_delT:
             "scripts/plot_repeat_lengths_from_vcf.py",
         ),
         minlen=0,
-        sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
+        sampleinfo="/home/AD/wdecoster/cohorts/Individuals.xlsx",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -329,7 +329,7 @@ rule length_plot_625:
             "scripts/plot_repeat_lengths_from_vcf.py",
         ),
         minlen=0,
-        sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
+        sampleinfo="/home/AD/wdecoster/cohorts/Individuals.xlsx",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -351,7 +351,7 @@ rule somatic_variation_plot:
             os.path.dirname(workflow.basedir),
             "scripts/somatic_variation_plot.py",
         ),
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -397,7 +397,7 @@ rule kmer_plot:
         ),
         kmer=12,
         minlength=100,
-        sampleinfo="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sampleinfo="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     log:
         os.path.join(outdir, "logs/{target}/kmer_plot.log"),
     shell:
@@ -433,7 +433,7 @@ rule ct_vs_length:
             os.path.dirname(workflow.basedir),
             "scripts/plot_ct_vs_repeat_length.py",
         ),
-        sample_info = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sample_info = "/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         xline = 0.8,
         yline = 450,
         arrows = "rr_UCL2783,rr_CW05_004"
@@ -481,7 +481,7 @@ rule correlate_with_age:
     log:
         os.path.join(outdir, "logs/workflows/{target}/ct_stretch_age.log"),
     params:
-        sample_info = "/home/wdecoster/cohorts/Individuals.xlsx",
+        sample_info = "/home/AD/wdecoster/cohorts/Individuals.xlsx",
         script = os.path.join(
             os.path.dirname(workflow.basedir),
             "scripts/correlate_with_age.py",
@@ -502,7 +502,7 @@ rule correlate_with_age_only_patients:
     log:
         os.path.join(outdir, "logs/workflows/{target}/ct_stretch_age.log"),
     params:
-        sample_info = "/home/wdecoster/cohorts/Individuals.xlsx",
+        sample_info = "/home/AD/wdecoster/cohorts/Individuals.xlsx",
         script = os.path.join(
             os.path.dirname(workflow.basedir),
             "scripts/correlate_with_age.py",
@@ -580,8 +580,8 @@ rule astronaut_all:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all.log"),
     params:
-        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize=8,
         minsize = 100,
     conda:
@@ -609,8 +609,8 @@ rule astronaut_all_narrow:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_all_narrow.log"),
     params:
-        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize=8,
         minsize = 100,
     conda:
@@ -639,8 +639,8 @@ rule astronaut_hapA:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_hapA.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize = 8,
         minsize = 100,
     conda:
@@ -667,8 +667,8 @@ rule astronaut_hapB:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_hapB.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         dotsize = 8,
         minsize = 100,
     conda:
@@ -697,8 +697,8 @@ rule astronaut_relatives:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_relatives.log"),
     params:
-        script="/home/wdecoster/repositories/pathSTR/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         relative_names=fix_names_relatives,
         dotsize = 8,
         minsize = 100,
@@ -731,8 +731,8 @@ rule astronaut_multiple_samples:
     log:
         os.path.join(outdir, "logs/workflows/{target}/aSTRonaut_multiple_samples.log"),
     params:
-        script="/home/wdecoster/pathSTR-1000G/scripts/aSTRonaut.py",
-        sample_info="/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        script="/home/AD/wdecoster/pathSTR/scripts/aSTRonaut.py",
+        sample_info="/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
         duplicate_names=fix_names_duplicates,
         minsize =100,
     conda:
@@ -782,7 +782,7 @@ rule make_combined_inquistr_file:
     log:
         os.path.join(outdir, "logs/workflows/combine_inquistr.log")
     params:
-        inquistr = "/home/wdecoster/repositories/inquiSTR/target/x86_64-unknown-linux-musl/release/inquiSTR"
+        inquistr = "/home/AD/wdecoster/repositories/inquiSTR/target/x86_64-unknown-linux-musl/release/inquiSTR"
     shell:
         "{params.inquistr} combine {input} > {output} 2> {log}"
 
@@ -853,7 +853,7 @@ rule plot_copy_number:
     log:
         os.path.join(outdir, "logs/workflows/plot_copy_number.log"),
     params:
-        sampleinfo="/home/wdecoster/cohorts/Individuals.xlsx",
+        sampleinfo="/home/AD/wdecoster/cohorts/Individuals.xlsx",
         script=os.path.join(
             os.path.dirname(workflow.basedir), "scripts/plot_copy_numbers.py"
         ),
@@ -870,7 +870,7 @@ rule cramino:
     log:
         os.path.join(outdir, "logs/workflows/{id}-cramino.log"),
     params:
-        executable="/home/wdecoster/repositories/cramino/target/release/cramino",
+        executable="/home/AD/wdecoster/repositories/cramino/target/release/cramino",
         ref=ref,
     threads:
         4
@@ -900,7 +900,7 @@ rule sex_check:
         os.path.join(outdir, "logs/sex_check.log"),
     params:
         script = os.path.join(os.path.dirname(workflow.basedir), "scripts/sex_check.py"),
-        cohort = "/home/wdecoster/cohorts/Individuals.xlsx",
+        cohort = "/home/AD/wdecoster/cohorts/Individuals.xlsx",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -925,7 +925,7 @@ rule phasius_region:
         summary = os.path.join(outdir, "phasius_summary.tsv")
     params:
         region = "chr15:34362469-34862469",
-        binary = "/home/wdecoster/repositories/phasius/target/release/phasius",
+        binary = "/home/AD/wdecoster/repositories/phasius/target/release/phasius",
     log:
         os.path.join(outdir, "logs/workflows/phasius_region.log"),
     shell:
@@ -1033,7 +1033,7 @@ rule find_shared_svs:
         script = os.path.join(
             os.path.dirname(workflow.basedir), "scripts/find_shared_variants.py"
         ),
-        sampleinfo = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+        sampleinfo = "/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
@@ -1130,7 +1130,7 @@ rule merge_variants:
         target = temp(os.path.join(outdir, "temp", "chr15_34426466_34426857.bed"))
     params:
         interval  = "chr15:34362469-34862469", # currently hardcoded
-        binary = "/home/wdecoster/bin/glnexus_cli"
+        binary = "/home/AD/wdecoster/bin/glnexus_cli"
     log:
         os.path.join(outdir, "logs/merge_variants_deepvariant.log")
     conda:
@@ -1166,8 +1166,8 @@ rule annotate_variants_with_vep:
         cp {input} .
         input=$(basename {input})
         output=$(basename {output.uncompr})
-        singularity exec /home/wdecoster/vep_data/vep.sif \
-        vep --dir /home/wdecoster/vep_data \
+        singularity exec /home/AD/wdecoster/vep_data/vep.sif \
+        vep --dir /home/AD/wdecoster/vep_data \
         --cache --offline --format vcf --vcf --force_overwrite \
         --input_file $input \
         --output_file $output 2> {log} && bgzip -c $output > {output.compressed} 2>> {log} && rm $input 2>> {log}
@@ -1186,8 +1186,8 @@ rule find_shared_snvs:
         script = os.path.join(
             os.path.dirname(workflow.basedir), "scripts/find_shared_variants.py"
         ),
-        sampleinfo = "/home/wdecoster/chr15q14/full_cohort_for_paper.tsv",
-            gwas = "/home/wdecoster/chr15q14/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
+        sampleinfo = "/home/AD/wdecoster/chr15q14/full_cohort_for_paper.tsv",
+            gwas = "/home/AD/wdecoster/chr15q14/results.MAF0.01.VQSRpass.ctrlBatch.05.FUSBatch.05.ctrlHWE1E-8.ctrlMISS.05.caseMISS.05.forPublication.txt.gz",
     conda:
         os.path.join(os.path.dirname(workflow.basedir), "envs/pandas_cyvcf2_plotly.yml")
     shell:
