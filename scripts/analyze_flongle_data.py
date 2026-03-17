@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+import logging
+import random
 import sys
 import os
 from itertools import cycle
@@ -32,23 +34,33 @@ class Genotype(object):
 
 def main():
     args = get_args()
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="[%(levelname)s] %(message)s",
+        stream=sys.stderr,
+    )
 
     # Check if we should load from pickle
     if args.load_pickle:
+        logging.info(f"Loading data from pickle: {args.load_pickle}")
         import pickle
         with open(args.load_pickle, 'rb') as f:
             data = pickle.load(f)
             df = data['df']
             genotypes = data['genotypes']
+        logging.info(f"Loaded {len(df)} records and {len(genotypes)} genotypes from pickle")
     else:
         # Process data from CRAMs
         if not args.crams:
             sys.exit("Error: either --crams or --load-pickle must be specified")
 
+        logging.info(f"Processing {len(args.crams)} CRAM file(s)")
         df = get_data(args)
+        logging.info(f"Loaded {len(df)} total records across {df['sample'].nunique()} sample(s)")
         genotypes = genotype_samples(df, args)
 
         if args.pickle:
+            logging.info(f"Saving processed data to pickle: {args.pickle}")
             import pickle
             with open(args.pickle, 'wb') as f:
                 pickle.dump({'df': df, 'genotypes': genotypes}, f)
@@ -60,6 +72,7 @@ def main():
 
     # Generate plots if requested
     if not args.noplot:
+        logging.info(f"Writing plots to {args.output}")
         df_filtered = df[df["length"].between(args.minlength, args.maxlength)]
         with open(args.output, "w") as out:
             out.write(plot_genotypes(genotypes).to_html())
@@ -68,6 +81,7 @@ def main():
             # out.write(scatter_plot(df_filtered, motif="CCCTCT count", full=args.full).to_html())
             out.write(scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
             out.write(scatter_motifs(df_filtered).to_html())
+        logging.info("Done")
 
 
 def genotype_samples(df, args):
@@ -98,16 +112,35 @@ def genotype_sample(df_sample, args, min_reads=100):
     
     # Set filter flag based on coverage
     filter_flag = "PASS" if num_reads >= min_reads else "LOWCOV"
-    
+    logging.info(
+        f"Sample {name}: {reads_before} reads initially, {num_reads} after length filter "
+        f"[{args.minlength}-{args.maxlength}], filter={filter_flag}"
+    )
+
     # Always attempt consensus with available reads
     if num_reads > 0:
         import pypoars
-        # Use min_reads longest reads if available, otherwise use all reads
         num_seqs = min(num_reads, min_reads)
-        seqs = df_sample.sort_values(by="length", ascending=False)["seq"].to_list()[:num_seqs]
+        if args.downsample == "random":
+            selected_reads = df_sample.sample(n=num_seqs, random_state=random.randint(0, 2**32 - 1))
+        else:
+            selected_reads = df_sample.sort_values(by="length", ascending=False).head(num_seqs)
+        seqs = selected_reads["seq"].to_list()
+        logging.info(
+            f"  Running POA consensus on {num_seqs} sequence(s) for {name} "
+            f"using {args.downsample} downsampling"
+        )
         consensus = pypoars.poa_consensus(seqs)
-        return Genotype(name, num_reads, reads_before, consensus, len(seqs[-1]), filter=filter_flag)
+        return Genotype(
+            name,
+            num_reads,
+            reads_before,
+            consensus,
+            selected_reads["length"].min(),
+            filter=filter_flag,
+        )
     else:
+        logging.info(f"  No reads for {name}, skipping consensus")
         return Genotype(name, num_reads, reads_before, None, None, filter=filter_flag)
 
 
@@ -115,6 +148,10 @@ def get_data(args):
     import pysam
     import pandas as pd
     records = []
+    use_softclip = not args.skip_softclip # invert the flag for easier use in the non_ref_bases function
+    logging.info(f"Extracting reads from region {args.region} in {len(args.crams)} CRAM file(s)")
+    logging.info(f"  Using full read sequences: {args.full}")
+    logging.info(f"  Using softclipped regions as non-ref bases: {use_softclip}")
     for cram in args.crams:
         name = (
             os.path.basename(cram)
@@ -123,9 +160,14 @@ def get_data(args):
             .split(".")[0]
             .replace("_v7", "")
         )
+        logging.info(f"Fetching reads from {cram} (sample: {name}) region: {args.region}")
+        before = len(records)
+        chrom, coords = args.region.split(":")
+        start, end = (int(x) for x in coords.split("-"))
         with pysam.AlignmentFile(cram) as f:
-            for r in f.fetch("chr15", 34419288, 34419527):
-                records.append(parse_read(r, args.full, name))
+            for r in f.fetch(chrom, start, end):
+                records.append(parse_read(r, args.full, name, use_softclip))
+        logging.info(f"  {len(records) - before} reads fetched from {name}")
 
     df = pd.DataFrame(
         records,
@@ -134,8 +176,8 @@ def get_data(args):
     return df
 
 
-def parse_read(read, full, name):
-    seq = read.query_sequence if full else non_ref_bases(read)
+def parse_read(read, full, name, use_softclip=True):
+    seq = read.query_sequence if full else non_ref_bases(read, use_softclip=use_softclip)
     if not seq:
         return name, get_strand(read), 0, None, 0, 0
     fragment_length = read.query_length if full else len(seq)
@@ -149,7 +191,7 @@ def parse_read(read, full, name):
     )
 
 
-def non_ref_bases(read, minlength=50):
+def non_ref_bases(read, minlength=50, use_softclip=True):
     """
     This function slices out the bases from a read that do not match the reference genome, by parsing the CIGAR string.
     Only cigar operations longer than minlength are considered, and only insertions and softclips are returned.
@@ -159,6 +201,7 @@ def non_ref_bases(read, minlength=50):
         return ""
     non_ref = ""
     read_position = 0
+    operations_to_consider = [1, 4] if use_softclip else [1]
     for operation, length in read.cigartuples:
         if operation in [0, 7, 8]:
             # operation 0 is match (M), 7 is match with sequence (=), 8 is alignment match (X)
@@ -172,7 +215,8 @@ def non_ref_bases(read, minlength=50):
             continue
         elif operation in [1, 4]:
             # operation 4 is softclip (S), operation 1 is insertion (I)
-            if length >= minlength:
+            # read_position must always advance for both, since both consume query sequence
+            if operation in operations_to_consider and length >= minlength:
                 non_ref += read.query_sequence[read_position : read_position + length]
             read_position += length
     # attempt to trim off the reference sequences that may be caugth in the softclipped region
@@ -432,6 +476,11 @@ def get_args():
         action="store_true",
         help="Use entire read sequence, not just non-reference bases",
     )
+    parser.add_argument(
+        "--skip-softclip",
+        action="store_true",
+        help="When extracting non-ref bases, skip softclipped regions (consider only insertions)",
+    )
     parser.add_argument("-o", "--output", default="read_lengths.html", help="Output file")
     parser.add_argument(
         "--threads", type=int, default=4, help="Number of threads to use"
@@ -444,6 +493,22 @@ def get_args():
     parser.add_argument(
         "--load-pickle", 
         help="Path to load previously processed data (bypasses CRAM processing)"
+    )
+    parser.add_argument(
+        "--region",
+        default="chr15:34419288-34419527",
+        help="Genomic region to fetch reads from (format: chrom:start-end)",
+    )
+    parser.add_argument(
+        "--downsample",
+        choices=["longest", "random"],
+        default="longest",
+        help="Strategy to select up to 100 reads for consensus",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging to stderr",
     )
     return parser.parse_args()
 
