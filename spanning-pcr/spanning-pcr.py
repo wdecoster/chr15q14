@@ -1,9 +1,28 @@
 from argparse import ArgumentParser
+from enum import IntEnum
 import logging
 import random
 import sys
 import os
-from plotting import ridges_plot, scatter_plot, scatter_motifs, plot_genotypes, plot_violins, plot_truth_correlation
+from typing import NamedTuple, Optional
+import plotting
+
+
+class ReadFlag(IntEnum):
+    PASS_QC = 0
+    ACCIDENTAL_2D = 1
+    NO_SEQ = 2
+
+
+class ReadFeatures(NamedTuple):
+    sample: str
+    read_id: str
+    strand: str
+    length: int
+    seq: Optional[str]
+    ccctct_count: int
+    ct_count: int
+    flag: ReadFlag
 
 
 class Genotype(object):
@@ -66,6 +85,10 @@ def main():
             with open(args.pickle, 'wb') as f:
                 pickle.dump({'df': df, 'genotypes': genotypes}, f)
 
+    if args.tsv:
+        df.to_csv(args.tsv, sep="\t", index=False)
+        logging.info(f"Wrote read DataFrame to {args.tsv}")
+
     # Display genotypes
     print(Genotype.write_header())
     for genotype in sorted(genotypes, key=lambda x: x.ct_dimer_count):
@@ -76,12 +99,12 @@ def main():
         logging.info(f"Writing plots to {args.output}")
         df_filtered = df[df["length"].between(args.minlength, args.maxlength)]
         with open(args.output, "w") as out:
-            out.write(plot_genotypes(genotypes).to_html())
-            out.write(plot_violins(df_filtered, genotypes).to_html())
-            # out.write(ridges_plot(df_filtered).to_html())
-            # out.write(scatter_plot(df_filtered, motif="CCCTCT count", full=args.full).to_html())
-            out.write(scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
-            out.write(scatter_motifs(df_filtered).to_html())
+            out.write(plotting.plot_genotypes(genotypes).to_html())
+            out.write(plotting.plot_violins(df_filtered, genotypes).to_html())
+            # out.write(plotting.ridges_plot(df_filtered).to_html())
+            # out.write(plotting.scatter_plot(df_filtered, motif="CCCTCT count", full=args.full).to_html())
+            out.write(plotting.scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
+            out.write(plotting.scatter_motifs(df_filtered).to_html())
         logging.info("Done")
 
     if args.truth:
@@ -98,7 +121,7 @@ def main():
                 truth_ct.append(Genotype.count_ct_dimer(seq))
                 labels.append(g.individual)
         if labels:
-            plot_truth_correlation(labels, cram_lengths, truth_lengths, cram_ct, truth_ct)
+            plotting.plot_truth_correlation(labels, cram_lengths, truth_lengths, cram_ct, truth_ct)
         else:
             logging.warning("No common individuals between CRAMs and truth file; skipping correlation plots.")
 
@@ -126,7 +149,10 @@ def next_sample(df):
 def genotype_sample(df_sample, args, min_reads=100):
     reads_before = len(df_sample)
     name = df_sample["sample"].iloc[0]
-    df_sample = df_sample[df_sample["length"].between(args.minlength, args.maxlength)]
+    df_sample = df_sample[
+        (df_sample["flag"] == ReadFlag.PASS_QC)
+        & df_sample["length"].between(args.minlength, args.maxlength)
+    ]
 
     num_reads = len(df_sample)
     
@@ -150,7 +176,7 @@ def genotype_sample(df_sample, args, min_reads=100):
             f"  Running POA consensus on {num_seqs} sequence(s) for {name} "
             f"using {args.downsample} downsampling"
         )
-        consensus = pypoars.poa_consensus(seqs)
+        consensus = pypoars.poa_consensus(seqs) # pyright: ignore[reportAttributeAccessIssue]
         return Genotype(
             name,
             num_reads,
@@ -164,9 +190,9 @@ def genotype_sample(df_sample, args, min_reads=100):
         return Genotype(name, num_reads, reads_before, None, None, filter=filter_flag)
 
 
-def load_one_cram(cram, region, full, use_softclip):
+def load_one_cram(cram, args):
     """Load reads from a single CRAM file. Runs in a worker process."""
-    import pysam
+    import pysam # pyright: ignore[reportMissingImports]
     name = (
         os.path.basename(cram)
         .replace("masked_rm_map-sminimap2-", "")
@@ -174,12 +200,13 @@ def load_one_cram(cram, region, full, use_softclip):
         .split(".")[0]
         .replace("_v7", "")
     )
-    chrom, coords = region.split(":")
+    use_softclip = not args.skip_softclip
+    chrom, coords = args.region.split(":")
     start, end = (int(x) for x in coords.split("-"))
     records = []
     with pysam.AlignmentFile(cram) as f:
         for r in f.fetch(chrom, start, end):
-            records.append(parse_read(r, full, name, use_softclip))
+            records.append(parse_read(r, args.full, name, use_softclip))
     return records
 
 
@@ -187,15 +214,13 @@ def get_data(args):
     import concurrent.futures
     import pandas as pd
     import tqdm
-    use_softclip = not args.skip_softclip
     logging.info(f"Extracting reads from region {args.region} in {len(args.crams)} CRAM file(s)")
     logging.info(f"  Using full read sequences: {args.full}")
-    logging.info(f"  Using softclipped regions as non-ref bases: {use_softclip}")
+    logging.info(f"  Using softclipped regions as non-ref bases: {not args.skip_softclip}")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.threads) as executor:
         futures = {
-            executor.submit(load_one_cram, cram, args.region, args.full, use_softclip): cram
-            for cram in args.crams
+            executor.submit(load_one_cram, cram, args): cram for cram in args.crams
         }
         records = []
         for future in tqdm.tqdm(
@@ -209,58 +234,143 @@ def get_data(args):
 
     df = pd.DataFrame(
         records,
-        columns=["sample", "strand", "length", "seq", "CCCTCT count", "CT count"],
+        columns=["sample", "read_id", "strand", "length", "seq", "CCCTCT count", "CT count", "flag"],
     )
+    df["flag"] = df["flag"].astype("category")
     return df
 
 
 def parse_read(read, full, name, use_softclip=True):
+    """
+    Extracts features of each read as a ReadFeatures named tuple.
+    Filters out reads that are likely to be accidental 2D reads (ONT artefact)
+     based on the presence of an SA tag indicating a chimeric alignment on the opposite strand.
+    Or reads that have no sequence record.
+    """
+    if is_accidental_2d_read(read):
+        return ReadFeatures(
+            name,
+            read.query_name,
+            get_strand(read),
+            0,
+            read.query_sequence, # include sequence for debugging purposes, even though it will be flagged as ACCIDENTAL_2D and not used
+            0,
+            0,
+            ReadFlag.ACCIDENTAL_2D,
+        )
     seq = read.query_sequence if full else non_ref_bases(read, use_softclip=use_softclip)
     if not seq:
-        return name, get_strand(read), 0, None, 0, 0
+        return ReadFeatures(name, read.query_name, get_strand(read), 0, None, 0, 0, ReadFlag.NO_SEQ)
     fragment_length = read.query_length if full else len(seq)
-    return (
-        name,
-        get_strand(read),
-        fragment_length,
-        seq,
-        get_ccctct(seq),
-        count_ct_by_subtracting_motifs(seq),
+    return ReadFeatures(
+        sample=name,
+        read_id=read.query_name,
+        strand=get_strand(read),
+        length=fragment_length,
+        seq=seq,
+        ccctct_count=get_ccctct(seq),
+        ct_count=count_ct_by_subtracting_motifs(seq),
+        flag=ReadFlag.PASS_QC,
     )
+
+def is_accidental_2d_read(read):
+    """Check if a read alignment might be an accidental 2D read (ONT artefact).
+
+    An accidental 2D read means that right after the template strand, the complement
+    strand was also sequenced. The read will align in two pieces of similar length to
+    the reference genome, with the second piece on the opposite strand.
+    """
+    read_strand = '-' if read.is_reverse else '+'
+
+    if not read.has_tag('SA'):
+        return False
+
+    sa_tag = read.get_tag('SA')
+    if not isinstance(sa_tag, str):
+        logging.warning(f"Unexpected type of SA auxiliary tag: {type(sa_tag)}")
+        return False
+
+    sa_entries = [e for e in sa_tag.split(';') if e]
+
+    if len(sa_entries) != 1:
+        return False
+
+    fields = sa_entries[0].split(',')
+    if len(fields) < 4:
+        logging.warning("Malformed SA tag entry: insufficient fields")
+        return False
+
+    sa_strand = fields[2]
+    if read_strand == sa_strand:
+        return False
+
+    start = read.reference_start
+    end = read.reference_end
+    sa_start = int(fields[1])
+    sa_end = sa_start + cigar_string_to_rlen(fields[3])
+
+    if max(start, sa_start) < min(end, sa_end):
+        logging.debug(
+            f"Identified read {read.query_name} as accidental 2D read, discarding"
+        )
+        return True
+
+    return False
+
+
+def cigar_string_to_rlen(cigar_string):
+    """Calculate reference length consumed by a CIGAR string."""
+    import re
+    # Operations that consume reference: M(0), D(2), N(3), =(7), X(8)
+    ref_consuming = {'M', 'D', 'N', '=', 'X'}
+    rlen = 0
+    for length, op in re.findall(r'(\d+)([MIDNSHP=X])', cigar_string):
+        if op in ref_consuming:
+            rlen += int(length)
+    return rlen
 
 
 def non_ref_bases(read, minlength=50, use_softclip=True):
     """
     This function slices out the bases from a read that do not match the reference genome, by parsing the CIGAR string.
     Only cigar operations longer than minlength are considered, and only insertions and softclips are returned.
-    The script iterates over the cigar string, while moving the cursor in the read sequence
+    The script iterates over the cigar string, while moving cursors in both the read sequence and the reference.
+    Softclips are only extracted if the reference position falls within the target interval.
     """
     if not read.query_sequence:
         return ""
     non_ref = ""
     read_position = 0
+    reference_position = read.reference_start
+    softclip_start = 34419380 # start of interval in which softclips are considered 
+    softclip_end = 34419494 # end of interval in which softclips are considered
     operations_to_consider = [1, 4] if use_softclip else [1]
     for operation, length in read.cigartuples:
         if operation in [0, 7, 8]:
             # operation 0 is match (M), 7 is match with sequence (=), 8 is alignment match (X)
             read_position += length
+            reference_position += length
         elif operation == 3:
             # operation 3 is refskip (N), this shouldn't happen
             sys.stderr.write("Warning: unexpected refskip cigar operation in read\n")
-            continue
+            reference_position += length
         elif operation == 2:
             # operation 2 is deletion (D). This script does not care about repeat contractions.
-            continue
+            reference_position += length
         elif operation in [1, 4]:
             # operation 4 is softclip (S), operation 1 is insertion (I)
             # read_position must always advance for both, since both consume query sequence
             if operation in operations_to_consider and length >= minlength:
+                # For softclips, only extract if reference position is within the target interval
+                if operation == 4 and not (softclip_start < reference_position < softclip_end):
+                    read_position += length
+                    continue
                 non_ref += read.query_sequence[read_position : read_position + length]
             read_position += length
     # attempt to trim off the reference sequences that may be caugth in the softclipped region
     # however, it is not likely that perfect matches are found for every read
     # therefore, using a fuzzy search allowing for a few mismatches (~5%) is used
-    from fuzzysearch import find_near_matches
+    from fuzzysearch import find_near_matches  # pyright: ignore[reportMissingImports]
     right_seq = "GAGACGGAGTTTCTCTCTTGTTGCCCAGGCTGGAGTGCATGTTGCTGTGCACTTTGAGGGCAGGAACTG"
     matches = find_near_matches(right_seq, non_ref, max_l_dist=4)
     if len(matches) > 1:
@@ -345,7 +455,16 @@ def get_args():
         "--truth",
         help="TSV file with columns 'individual' and 'sequence' for truth expansion sequences",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--tsv",
+        help="Path to dump the entire read DataFrame as a TSV file",
+    )
+    args = parser.parse_args()
+    if args.region != "chr15:34419288-34419527" and not args.skip_softclip:
+        sys.exit(
+            "Custom region specified without --skip-softclip; which is currently required."
+        )
+    return args
 
 
 if __name__ == "__main__":
