@@ -40,7 +40,7 @@ def scatter_plot(df, motif, full=False):
     colors = ["blue", "red", "green", "purple", "orange"]
     if len(df["sample"].unique()) > len(colors):
         sys.stderr.write(
-            "Warning: more samples than colors, some samples will have the same color.\n"
+            "Warning: more samples than colors in scatter plot, some samples will have the same color.\n"
         )
         colors = cycle(colors)
     for sample, color in zip(df["sample"].unique(), colors):
@@ -207,84 +207,127 @@ def plot_violins(df, genotypes, min_ct_count=100):
     return fig_violin
 
 
-def plot_truth_correlation(labels, cram_lengths, truth_lengths, cram_ct, truth_ct):
-    fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=("Expansion length", "CT dimer count"),
-        horizontal_spacing=0.12,
-    )
+def plot_truth_correlation(labels, cram_lengths, truth_lengths, cram_ct, truth_ct, both=False):
+    if both:
+        fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=("Expansion length (bp)", "CT dimer count"),
+            horizontal_spacing=0.12,
+        )
+        fig.update_annotations(font=dict(size=18)) # increase subplot title font size
 
-    # Scatter 1: expansion length
-    fig.add_trace(
-        go.Scatter(
-            x=truth_lengths,
-            y=cram_lengths,
-            mode="markers",
-            marker=dict(size=6, color="black"),
-            text=labels,
-            hovertext=labels,
-            showlegend=False,
-        ),
-        row=1, col=1,
-    )
-    # identity line for length
-    all_lengths = truth_lengths + cram_lengths
-    len_min, len_max = min(all_lengths), max(all_lengths)
-    fig.add_trace(
-        go.Scatter(
-            x=[len_min, len_max], y=[len_min, len_max],
-            mode="lines", line=dict(dash="dash", color="grey", width=1),
-            showlegend=False,
-        ),
-        row=1, col=1,
-    )
+        # Scatter 1: expansion length
+        fig.add_trace(
+            go.Scatter(
+                x=truth_lengths,
+                y=cram_lengths,
+                mode="markers",
+                marker=dict(size=9, color="black"),
+                text=labels,
+                hovertext=labels,
+                showlegend=False,
+            ),
+            row=1, col=1,
+        )
+        # identity line for length
+        all_lengths = truth_lengths + cram_lengths
+        len_min, len_max = min(all_lengths), max(all_lengths)
+        fig.add_trace(
+            go.Scatter(
+                x=[len_min, len_max], y=[len_min, len_max],
+                mode="lines", line=dict(dash="dash", color="grey", width=1),
+                showlegend=False,
+            ),
+            row=1, col=1,
+        )
 
-    # Scatter 2: CT dimer count
-    fig.add_trace(
-        go.Scatter(
-            x=truth_ct,
-            y=cram_ct,
-            mode="markers",
-            marker=dict(size=6, color="black"),
-            text=labels,
-            hovertext=labels,
-            showlegend=False,
-        ),
-        row=1, col=2,
-    )
-    # identity line for CT
-    all_ct = truth_ct + cram_ct
-    ct_min, ct_max = min(all_ct), max(all_ct)
-    fig.add_trace(
-        go.Scatter(
-            x=[ct_min, ct_max], y=[ct_min, ct_max],
-            mode="lines", line=dict(dash="dash", color="grey", width=1),
-            showlegend=False,
-        ),
-        row=1, col=2,
-    )
+        # Scatter 2: CT dimer count
+        fig.add_trace(
+            go.Scatter(
+                x=truth_ct,
+                y=cram_ct,
+                mode="markers",
+                marker=dict(size=9, color="black"),
+                text=labels,
+                hovertext=labels,
+                showlegend=False,
+            ),
+            row=1, col=2,
+        )
+        # identity line for CT
+        all_ct = truth_ct + cram_ct
+        ct_min, ct_max = min(all_ct), max(all_ct)
+        fig.add_trace(
+            go.Scatter(
+                x=[ct_min, ct_max], y=[ct_min, ct_max],
+                mode="lines", line=dict(dash="dash", color="grey", width=1),
+                showlegend=False,
+            ),
+            row=1, col=2,
+        )
 
-    fig.update_layout(
-        plot_bgcolor="white",
-        margin=dict(l=60, r=20, t=60, b=60),
-        font=dict(size=14),
-        height=500,
-        width=1100,
-    )
-    for col in [1, 2]:
+        fig.update_layout(
+            plot_bgcolor="white",
+            margin=dict(l=60, r=20, t=60, b=60),
+            font=dict(size=18),
+            height=500,
+            width=1100,
+        )
+        for col in [1, 2]:
+            fig.update_xaxes(
+                showline=True, linewidth=1, linecolor="black", mirror=True,
+                rangemode="tozero", row=1, col=col,
+            )
+            fig.update_yaxes(
+                showline=True, linewidth=1, linecolor="black", mirror=True,
+                rangemode="tozero", row=1, col=col,
+            )
+        fig.update_xaxes(title_text="ONT genome sequencing", row=1, col=1)
+        fig.update_yaxes(title_text="Amplicon ", row=1, col=1)
+        fig.update_xaxes(title_text="ONT genome sequencing", row=1, col=2)
+        fig.update_yaxes(title_text="Amplicon sequencing", row=1, col=2)
+
+    else:
+        # this only does the CT dimer plot, without subplots, but otherwise the same style as above
+        fig = go.Figure(
+            go.Scatter(
+                x=truth_ct,
+                y=cram_ct,
+                mode="markers",
+                marker=dict(size=9, color="black"),
+                text=labels,
+                hovertext=labels,
+                showlegend=False,
+            )
+        )
+        # identity line for CT
+        all_ct = truth_ct + cram_ct
+        ct_min, ct_max = min(all_ct), max(all_ct)
+        fig.add_trace(
+            go.Scatter(
+                x=[ct_min, ct_max], y=[ct_min, ct_max],
+                mode="lines", line=dict(dash="dash", color="grey", width=1),
+                showlegend=False,
+            )
+        )
+        fig.update_layout(
+            plot_bgcolor="white",
+            margin=dict(l=60, r=20, t=60, b=60),
+            font=dict(size=18),
+            height=400,
+            width=400,
+            title=dict(text="CT dimer count", x=0.5, xanchor="center"),
+        )
         fig.update_xaxes(
             showline=True, linewidth=1, linecolor="black", mirror=True,
-            rangemode="tozero", row=1, col=col,
+            rangemode="tozero",
         )
         fig.update_yaxes(
             showline=True, linewidth=1, linecolor="black", mirror=True,
-            rangemode="tozero", row=1, col=col,
+            rangemode="tozero",
         )
-    fig.update_xaxes(title_text="ONT genome sequencing length (bp)", row=1, col=1)
-    fig.update_yaxes(title_text="Amplicon sequencing length (bp)", row=1, col=1)
-    fig.update_xaxes(title_text="ONT genome sequencing CT dimers", row=1, col=2)
-    fig.update_yaxes(title_text="Amplicon sequencing CT dimers", row=1, col=2)
-
+        fig.update_xaxes(title_text="ONT genome sequencing")
+        fig.update_yaxes(title_text="Amplicon sequencing")
     with open("repeat_correlation.html", "w") as f:
         f.write(fig.to_html())
     logging.info("Wrote repeat_correlation.html")
