@@ -27,11 +27,17 @@ class Genotype(object):
         self.group = group
 
     def __repr__(self):
-        return f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}\t{self.filter}"
+        return (
+            f"{self.individual}\t{self.num_reads}\t{self.reads_initially}\t{self.length}\t"
+            f"{self.ct_dimer_count}\t{self.hexamer_count}\t{self.seq}\t{self.filter}\t{self.group}"
+        )
 
     @staticmethod
     def write_header():
-        return "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\tCCCTCT hexamer count\tConsensus sequence\tFilter"
+        return (
+            "Individual\tNum reads expanded\tNum reads initially\tLength\tCT dimer count\t"
+            "CCCTCT hexamer count\tConsensus sequence\tFilter\tGroup"
+        )
 
     @staticmethod
     def count_ct_dimer(seq):
@@ -44,16 +50,32 @@ class Genotype(object):
 def genotype_samples(df, args):
     import concurrent.futures
     import tqdm
+    from itertools import repeat
 
     def next_sample(df):
         for sample in df["sample"].unique():
             yield df[df["sample"] == sample]
 
+    def parse_groups(groups_file):
+        groups = {}
+        with open(groups_file) as f:
+            for line in f:
+                if not line.startswith("individual\tgroup"): # skip header
+                    sample, group = line.strip().split("\t")
+                    groups[sample] = group
+        return groups
+
     num_samples = len(df["sample"].unique())
+    groups = parse_groups(args.groups) if args.groups else {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.threads) as executor:
         genotypes = list(
             tqdm.tqdm(
-                executor.map(genotype_sample, next_sample(df), [args] * num_samples),
+                executor.map(
+                    genotype_sample,
+                    next_sample(df),
+                    repeat(args, num_samples),
+                    repeat(groups, num_samples),
+                ),
                 total=num_samples,
                 desc="Genotyping",
             )
@@ -61,7 +83,7 @@ def genotype_samples(df, args):
     return genotypes
 
 
-def genotype_sample(df_sample, args, min_reads=100):
+def genotype_sample(df_sample, args, groups, min_reads=100):
     reads_before = len(df_sample)
     name = df_sample["sample"].iloc[0]
     df_sample = df_sample[
@@ -100,13 +122,21 @@ def genotype_sample(df_sample, args, min_reads=100):
             seqs
         )
         return Genotype(
-            name,
-            num_reads,
-            reads_before,
-            consensus,
-            selected_reads["length"].min(),
+            individual=name,
+            num_reads=num_reads,
+            reads_initially=reads_before,
+            seq=consensus,
+            smallest_length_used=selected_reads["length"].min(),
             filter=filter_flag,
+            group=groups.get(name, None),
         )
     else:
         logging.info(f"  No reads for {name}, skipping consensus")
-        return Genotype(name, num_reads, reads_before, None, None, filter=filter_flag)
+        return Genotype(
+            individual=name, 
+            num_reads=num_reads,
+            reads_initially=reads_before, 
+            seq=None,
+            smallest_length_used=None,
+            filter=filter_flag,
+            group=groups.get(name, None))

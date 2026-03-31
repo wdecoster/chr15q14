@@ -51,11 +51,12 @@ def main():
         df_filtered = df[df["length"].between(args.minlength, args.maxlength)]
         with open(args.output, "w") as out:
             out.write(plotting.plot_genotypes(genotypes).to_html())
+            out.write(plotting.plot_strips(genotypes).to_html())
             out.write(plotting.plot_violins(df_filtered, genotypes).to_html())
             # out.write(plotting.ridges_plot(df_filtered).to_html())
             # out.write(plotting.scatter_plot(df_filtered, motif="CCCTCT count", full=args.full).to_html())
-            out.write(plotting.scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
-            out.write(plotting.scatter_motifs(df_filtered).to_html())
+            # out.write(plotting.scatter_plot(df_filtered, motif="CT count", full=args.full).to_html())
+            # out.write(plotting.scatter_motifs(df_filtered).to_html())
         logging.info("Done")
 
     if args.truth:

@@ -1,7 +1,7 @@
 import logging
 import sys
 from itertools import cycle
-
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -135,21 +135,88 @@ def scatter_motifs(df):
     )
     return fig_scatter
 
+def plot_strips(genotypes):
+    """
+    Make a horizontal strip plot showing for each sample the CT dimer count, split by group
+    """
+    df = pd.DataFrame(
+        {
+            "ct_dimer_count": [g.ct_dimer_count for g in genotypes],
+            "hexamer_count": [g.hexamer_count for g in genotypes],
+            "individual": [g.individual for g in genotypes],
+            "group": [getattr(g, "group", "Unknown") for g in genotypes],
+        }
+    )
+
+    fig_strip = px.strip(
+        df,
+        x="ct_dimer_count",
+        y="group",
+        color="group",
+        hover_name="individual",
+        labels={
+            "ct_dimer_count": "CT dimers",
+            "hexamer_count": "CCCTCT hexamers",
+            "group": "Group",
+        },
+        title="Genotypes from spanning PCR",
+    )
+    fig_strip.update_traces(marker=dict(size=4))
+
+    fig_strip.update_layout(
+        plot_bgcolor="white",
+        margin=dict(l=0, r=0, t=50, b=0),
+        title="Genotypes from spanning PCR",
+        font=dict(size=16),
+        height=400,
+        width=800,
+    )
+    fig_strip.update_xaxes(
+        showline=True,
+        linewidth=1,
+        linecolor="black",
+        mirror=True,
+        title="CT dimers",
+        rangemode="tozero",
+    )
+    fig_strip.update_yaxes(
+        showline=True,
+        linewidth=1,
+        linecolor="black",
+        mirror=True,
+        title="Group",
+    )
+    fig_strip.add_vline(x=190, line_width=2, line_dash="dash", line_color="black")
+    return fig_strip
 
 def plot_genotypes(genotypes):
     """
     Make a scatter plot showing for each sample the CT dimer count vs the CCCTCT hexamer count
     """
-    fig_scatter = go.Figure(
-        go.Scatter(
-            x=[genotype.ct_dimer_count for genotype in genotypes],
-            y=[genotype.hexamer_count for genotype in genotypes],
-            mode="markers",
-            text=[genotype.individual for genotype in genotypes],
-            marker=dict(size=4, color="black"),
-            hovertext=[genotype.individual for genotype in genotypes],
-        )
+    df = pd.DataFrame(
+        {
+            "ct_dimer_count": [g.ct_dimer_count for g in genotypes],
+            "hexamer_count": [g.hexamer_count for g in genotypes],
+            "individual": [g.individual for g in genotypes],
+            "group": [getattr(g, "group", "Unknown") for g in genotypes],
+        }
     )
+
+    fig_scatter = px.scatter(
+        df,
+        x="ct_dimer_count",
+        y="hexamer_count",
+        color="group",
+        hover_name="individual",
+        labels={
+            "ct_dimer_count": "CT dimers",
+            "hexamer_count": "CCCTCT hexamers",
+            "group": "Group",
+        },
+        title="Genotypes from spanning PCR",
+    )
+    fig_scatter.update_traces(marker=dict(size=4))
+
     fig_scatter.update_layout(
         plot_bgcolor="white",
         margin=dict(l=0, r=0, t=50, b=0),
